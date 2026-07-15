@@ -23,7 +23,7 @@ export function expirationGroup(dateString) {
 }
 
 export function formatDate(dateString) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat('sq-AL', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -32,9 +32,9 @@ export function formatDate(dateString) {
 
 export function formatRelativeExpiration(dateString) {
   const days = daysUntil(dateString)
-  if (days === 0) return 'Expires today'
-  if (days === 1) return 'Expires tomorrow'
-  if (days > 1) return `Expires in ${days} days`
-  if (days === -1) return 'Expired yesterday'
-  return `Expired ${Math.abs(days)} days ago`
+  if (days === 0) return 'Skadon sot'
+  if (days === 1) return 'Skadon nesër'
+  if (days > 1) return `Skadon pas ${days} ditësh`
+  if (days === -1) return 'Ka skaduar dje'
+  return `Ka skaduar para ${Math.abs(days)} ditësh`
 }

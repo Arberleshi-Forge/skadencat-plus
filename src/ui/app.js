@@ -6,17 +6,17 @@ import {
 } from '../utils/dates.js'
 
 const PAGE_TITLES = {
-  dashboard: ['Dashboard', 'Your inventory at a glance'],
-  markets: ['Markets', 'Manage where your products are sold'],
-  products: ['Products', 'Track every product and expiry date'],
-  expiring: ['Expiring Soon', 'Stay ahead of product expiry dates'],
+  dashboard: ['Përmbledhje', 'Gjendja e inventarit me një shikim'],
+  markets: ['Marketet', 'Menaxho marketet ku shpërndahen produktet.'],
+  products: ['Produktet', 'Menaxho produktet dhe datat e skadencës.'],
+  expiring: ['Skadencat', 'Qëndro në kontroll të datave të skadencës.'],
 }
 
 const GROUPS = [
-  { id: 'expired', label: 'Expired', tone: 'danger' },
-  { id: 'seven', label: 'Within 7 days', tone: 'warning' },
-  { id: 'thirty', label: 'Within 30 days', tone: 'attention' },
-  { id: 'safe', label: 'Safe products', tone: 'success' },
+  { id: 'expired', label: 'Të skaduara', tone: 'danger' },
+  { id: 'seven', label: 'Brenda 7 ditëve', tone: 'warning' },
+  { id: 'thirty', label: 'Brenda 30 ditëve', tone: 'attention' },
+  { id: 'safe', label: 'Produkte në rregull', tone: 'success' },
 ]
 
 function escapeHtml(value = '') {
@@ -56,7 +56,7 @@ export function createApp({ root, marketRepository, productRepository }) {
   }
 
   function marketName(marketId) {
-    return state.markets.find((market) => market.id === marketId)?.name || 'Unknown market'
+    return state.markets.find((market) => market.id === marketId)?.name || 'Market i panjohur'
   }
 
   function filteredProducts() {
@@ -76,7 +76,7 @@ export function createApp({ root, marketRepository, productRepository }) {
           <div class="product-name-line">
             <h3>${escapeHtml(product.name)}</h3>
             ${actions ? `
-              <button class="more-button" data-action="edit-product" data-id="${product.id}" aria-label="Edit ${escapeHtml(product.name)}">•••</button>
+              <button class="more-button" data-action="edit-product" data-id="${product.id}" aria-label="Modifiko ${escapeHtml(product.name)}">•••</button>
             ` : ''}
           </div>
           <p>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</p>
@@ -102,46 +102,46 @@ export function createApp({ root, marketRepository, productRepository }) {
     return `
       <section class="welcome-card">
         <div>
-          <span class="eyebrow">INVENTORY HEALTH</span>
-          <h2>${expired ? `${expired} product${expired === 1 ? '' : 's'} need attention` : 'Everything looks fresh'}</h2>
-          <p>${expired ? 'Review expired items and keep your shelves up to date.' : 'No expired products in your inventory.'}</p>
+          <span class="eyebrow">GJENDJA E SKADENCAVE</span>
+          <h2>${expired ? (expired === 1 ? '1 produkt kërkon vëmendje' : `${expired} produkte kërkojnë vëmendje`) : 'Gjithçka është në rregull'}</h2>
+          <p>${expired ? 'Kontrollo produktet e skaduara dhe mbaji raftet të përditësuara.' : 'Nuk ka produkte të skaduara.'}</p>
         </div>
-        <button class="button button-light" data-page="expiring">Review products</button>
+        <button class="button button-light" data-page="expiring">Shiko produktet</button>
       </section>
 
-      <section class="stats-grid" aria-label="Inventory summary">
+      <section class="stats-grid" aria-label="Përmbledhja e inventarit">
         <button class="stat-card" data-page="markets">
           <span class="stat-icon stat-blue" aria-hidden="true">M</span>
           <strong>${state.markets.length}</strong>
-          <span>Total markets</span>
+          <span>Marketet</span>
         </button>
         <button class="stat-card" data-page="products">
           <span class="stat-icon stat-purple" aria-hidden="true">P</span>
           <strong>${state.products.length}</strong>
-          <span>Total products</span>
+          <span>Produktet</span>
         </button>
         <button class="stat-card" data-page="expiring">
           <span class="stat-icon stat-orange" aria-hidden="true">30</span>
           <strong>${expiringThirty}</strong>
-          <span>Expiring in 30 days</span>
+          <span>Brenda 30 ditëve</span>
         </button>
         <button class="stat-card" data-page="expiring">
           <span class="stat-icon stat-red" aria-hidden="true">!</span>
           <strong>${expired}</strong>
-          <span>Expired products</span>
+          <span>Produkte të skaduara</span>
         </button>
       </section>
 
       <section class="section-block">
         <div class="section-heading">
           <div>
-            <span class="eyebrow">NEEDS ATTENTION</span>
-            <h2>Upcoming expirations</h2>
+            <span class="eyebrow">KËRKOJNË VËMENDJE</span>
+            <h2>Skadencat e afërta</h2>
           </div>
-          <button class="text-button" data-page="expiring">See all</button>
+          <button class="text-button" data-page="expiring">Shiko të gjitha</button>
         </div>
         <div class="list-card">
-          ${urgentProducts.length ? urgentProducts.map((product) => productRow(product)).join('') : emptyState('No urgent products', 'Products nearing expiration will appear here.')}
+          ${urgentProducts.length ? urgentProducts.map((product) => productRow(product)).join('') : emptyState('Nuk ka produkte urgjente.', 'Produktet që afrojnë skadencën do të shfaqen këtu.')}
         </div>
       </section>
     `
@@ -152,8 +152,8 @@ export function createApp({ root, marketRepository, productRepository }) {
 
     return `
       <div class="page-actions">
-        <p>${state.markets.length} ${state.markets.length === 1 ? 'market' : 'markets'} saved on this device</p>
-        <button class="button button-primary" data-action="add-market"><span aria-hidden="true">+</span> Add market</button>
+        <p>${state.markets.length} ${state.markets.length === 1 ? 'market i ruajtur' : 'markete të ruajtura'} në këtë pajisje</p>
+        <button class="button button-primary" data-action="add-market"><span aria-hidden="true">+</span> Shto market</button>
       </div>
       <section class="list-card market-list">
         ${state.markets.length ? state.markets.map((market) => `
@@ -161,11 +161,11 @@ export function createApp({ root, marketRepository, productRepository }) {
             <div class="market-avatar" aria-hidden="true">${escapeHtml(market.name.charAt(0).toUpperCase())}</div>
             <div class="market-info">
               <h3>${escapeHtml(market.name)}</h3>
-              <p>${market.location ? escapeHtml(market.location) : 'No location added'} · ${productCount(market.id)} ${productCount(market.id) === 1 ? 'product' : 'products'}</p>
+              <p>${market.location ? escapeHtml(market.location) : 'Pa vendndodhje'} · ${productCount(market.id)} ${productCount(market.id) === 1 ? 'produkt' : 'produkte'}</p>
             </div>
-            <button class="more-button" data-action="edit-market" data-id="${market.id}" aria-label="Edit ${escapeHtml(market.name)}">•••</button>
+            <button class="more-button" data-action="edit-market" data-id="${market.id}" aria-label="Modifiko ${escapeHtml(market.name)}">•••</button>
           </article>
-        `).join('') : emptyState('Add your first market', 'Create a market before adding products to your inventory.')}
+        `).join('') : emptyState('Shto marketin e parë', 'Krijo një market para se të shtosh produkte në inventar.')}
       </section>
     `
   }
@@ -176,16 +176,16 @@ export function createApp({ root, marketRepository, productRepository }) {
       <div class="page-actions product-actions">
         <div class="search-field">
           <span aria-hidden="true">⌕</span>
-          <input type="search" data-search placeholder="Search name or barcode" value="${escapeHtml(state.query)}" aria-label="Search products by name or barcode">
-          ${state.query ? '<button data-action="clear-search" aria-label="Clear search">×</button>' : ''}
+          <input type="search" data-search placeholder="Kërko sipas emrit ose barkodit" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit ose barkodit">
+          ${state.query ? '<button data-action="clear-search" aria-label="Pastro kërkimin">×</button>' : ''}
         </div>
-        <button class="button button-primary" data-action="add-product"><span aria-hidden="true">+</span> Add product</button>
+        <button class="button button-primary" data-action="add-product"><span aria-hidden="true">+</span> Shto produkt</button>
       </div>
-      <div class="result-count">${products.length} ${products.length === 1 ? 'product' : 'products'}${state.query ? ' found' : ''}</div>
+      <div class="result-count">${products.length} ${products.length === 1 ? 'produkt' : 'produkte'}${state.query ? (products.length === 1 ? ' u gjet' : ' u gjetën') : ''}</div>
       <section class="list-card product-list">
         ${products.length ? products.map((product) => productRow(product, { actions: true })).join('') : emptyState(
-          state.query ? 'No matching products' : 'No products yet',
-          state.query ? 'Try another name or barcode.' : state.markets.length ? 'Add your first product to start tracking expiration dates.' : 'Add a market first, then add products.',
+          state.query ? 'Nuk u gjet asnjë produkt' : 'Nuk ka ende produkte',
+          state.query ? 'Provo një emër ose barkod tjetër.' : state.markets.length ? 'Shto produktin e parë për të filluar ndjekjen e datave të skadencës.' : 'Shto fillimisht një market, pastaj shto produktet.',
         )}
       </section>
     `
@@ -196,8 +196,8 @@ export function createApp({ root, marketRepository, productRepository }) {
     return `
       <div class="search-field expiring-search">
         <span aria-hidden="true">⌕</span>
-        <input type="search" data-search placeholder="Search name or barcode" value="${escapeHtml(state.query)}" aria-label="Search products by name or barcode">
-        ${state.query ? '<button data-action="clear-search" aria-label="Clear search">×</button>' : ''}
+        <input type="search" data-search placeholder="Kërko sipas emrit ose barkodit" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit ose barkodit">
+        ${state.query ? '<button data-action="clear-search" aria-label="Pastro kërkimin">×</button>' : ''}
       </div>
       <div class="group-stack">
         ${GROUPS.map((group) => {
@@ -209,7 +209,7 @@ export function createApp({ root, marketRepository, productRepository }) {
                 <span class="group-title"><span class="status-dot tone-${group.id}"></span>${group.label}</span>
                 <span class="group-meta">${groupProducts.length}<span class="chevron ${expanded ? 'expanded' : ''}">⌄</span></span>
               </button>
-              ${expanded ? `<div class="list-card compact-list">${groupProducts.length ? groupProducts.map((product) => productRow(product)).join('') : '<p class="group-empty">No products in this group</p>'}</div>` : ''}
+              ${expanded ? `<div class="list-card compact-list">${groupProducts.length ? groupProducts.map((product) => productRow(product)).join('') : '<p class="group-empty">Nuk ka produkte në këtë grup</p>'}</div>` : ''}
             </section>
           `
         }).join('')}
@@ -229,20 +229,20 @@ export function createApp({ root, marketRepository, productRepository }) {
     root.innerHTML = `
       <div class="app-shell">
         <header class="topbar">
-          <div class="brand-mark" aria-hidden="true">SA</div>
+          <div class="brand-mark" aria-hidden="true">S+</div>
           <div class="title-wrap">
             <h1>${title}</h1>
             <p>${subtitle}</p>
           </div>
-          <div class="local-badge"><span></span> Local only</div>
+          <div class="local-badge"><span></span> Vetëm në këtë pajisje</div>
         </header>
         <main class="main-content">${pageContent()}</main>
-        <nav class="bottom-nav" aria-label="Main navigation">
+        <nav class="bottom-nav" aria-label="Navigimi kryesor">
           ${[
-            ['dashboard', '⌂', 'Dashboard'],
-            ['markets', '◎', 'Markets'],
-            ['products', '▣', 'Products'],
-            ['expiring', '◷', 'Expiring'],
+            ['dashboard', '⌂', 'Përmbledhje'],
+            ['markets', '◎', 'Marketet'],
+            ['products', '▣', 'Produktet'],
+            ['expiring', '◷', 'Skadencat'],
           ].map(([page, icon, label]) => `
             <button class="nav-item ${state.page === page ? 'active' : ''}" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>
               <span aria-hidden="true">${icon}</span>${label}
@@ -278,14 +278,14 @@ export function createApp({ root, marketRepository, productRepository }) {
         <input type="hidden" name="createdAt" value="${market.createdAt || ''}">
         <div class="sheet-handle"></div>
         <div class="sheet-heading">
-          <div><span class="eyebrow">MARKET</span><h2>${market.id ? 'Edit market' : 'Add a new market'}</h2></div>
-          <button type="button" class="close-button" data-action="close-dialog" aria-label="Close">×</button>
+          <div><span class="eyebrow">MARKET</span><h2>${market.id ? 'Modifiko marketin' : 'Shto një market të ri'}</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
         </div>
-        <label class="field"><span>Market name</span><input name="name" required maxlength="80" autocomplete="organization" value="${escapeHtml(market.name || '')}" placeholder="e.g. Greenway Market"></label>
-        <label class="field"><span>Location <em>Optional</em></span><input name="location" maxlength="120" value="${escapeHtml(market.location || '')}" placeholder="e.g. Downtown"></label>
+        <label class="field"><span>Emri i marketit</span><input name="name" required maxlength="80" autocomplete="organization" value="${escapeHtml(market.name || '')}" placeholder="p.sh. Marketi Alba"></label>
+        <label class="field"><span>Vendndodhja <em>Opsionale</em></span><input name="location" maxlength="120" value="${escapeHtml(market.location || '')}" placeholder="p.sh. Qendër"></label>
         <div class="form-actions">
-          ${market.id ? '<button type="button" class="button button-danger-text" data-action="delete-market">Delete</button>' : '<span></span>'}
-          <button type="submit" class="button button-primary">${market.id ? 'Save changes' : 'Add market'}</button>
+          ${market.id ? '<button type="button" class="button button-danger-text" data-action="delete-market">Fshi</button>' : '<span></span>'}
+          <button type="submit" class="button button-primary">${market.id ? 'Ruaj ndryshimet' : 'Shto market'}</button>
         </div>
       </form>
     `)
@@ -295,7 +295,7 @@ export function createApp({ root, marketRepository, productRepository }) {
     if (!state.markets.length) {
       state.page = 'markets'
       render()
-      showToast('Add a market before adding products.')
+      showToast('Shto një market para se të shtosh produkte.')
       return
     }
 
@@ -305,19 +305,19 @@ export function createApp({ root, marketRepository, productRepository }) {
         <input type="hidden" name="createdAt" value="${product.createdAt || ''}">
         <div class="sheet-handle"></div>
         <div class="sheet-heading">
-          <div><span class="eyebrow">PRODUCT</span><h2>${product.id ? 'Edit product' : 'Add a new product'}</h2></div>
-          <button type="button" class="close-button" data-action="close-dialog" aria-label="Close">×</button>
+          <div><span class="eyebrow">PRODUKT</span><h2>${product.id ? 'Modifiko produktin' : 'Shto një produkt të ri'}</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
         </div>
         <div class="field-grid">
-          <label class="field field-wide"><span>Product name</span><input name="name" required maxlength="100" value="${escapeHtml(product.name || '')}" placeholder="e.g. Organic Milk"></label>
-          <label class="field"><span>Barcode <em>Optional</em></span><input name="barcode" inputmode="numeric" maxlength="64" value="${escapeHtml(product.barcode || '')}" placeholder="Scan or enter number"></label>
-          <label class="field"><span>Market</span><select name="marketId" required><option value="">Select market</option>${state.markets.map((market) => `<option value="${market.id}" ${product.marketId === market.id ? 'selected' : ''}>${escapeHtml(market.name)}</option>`).join('')}</select></label>
-          <label class="field"><span>Expiration date</span><input name="expirationDate" type="date" required value="${product.expirationDate || ''}"></label>
-          <label class="field field-wide"><span>Notes <em>Optional</em></span><textarea name="notes" maxlength="500" rows="3" placeholder="Add storage details or a reminder">${escapeHtml(product.notes || '')}</textarea></label>
+          <label class="field field-wide"><span>Emri i produktit</span><input name="name" required maxlength="100" value="${escapeHtml(product.name || '')}" placeholder="p.sh. Qumësht organik"></label>
+          <label class="field"><span>Barkodi <em>Opsional</em></span><input name="barcode" inputmode="numeric" maxlength="64" value="${escapeHtml(product.barcode || '')}" placeholder="Skano ose shkruaj numrin"></label>
+          <label class="field"><span>Marketi</span><select name="marketId" required><option value="">Zgjidh marketin</option>${state.markets.map((market) => `<option value="${market.id}" ${product.marketId === market.id ? 'selected' : ''}>${escapeHtml(market.name)}</option>`).join('')}</select></label>
+          <label class="field"><span>Data e skadencës</span><input name="expirationDate" type="date" required value="${product.expirationDate || ''}"></label>
+          <label class="field field-wide"><span>Shënime <em>Opsionale</em></span><textarea name="notes" maxlength="500" rows="3" placeholder="Shto hollësi për ruajtjen ose një kujtesë">${escapeHtml(product.notes || '')}</textarea></label>
         </div>
         <div class="form-actions">
-          ${product.id ? '<button type="button" class="button button-danger-text" data-action="delete-product">Delete</button>' : '<span></span>'}
-          <button type="submit" class="button button-primary">${product.id ? 'Save changes' : 'Save product'}</button>
+          ${product.id ? '<button type="button" class="button button-danger-text" data-action="delete-product">Fshi</button>' : '<span></span>'}
+          <button type="submit" class="button button-primary">${product.id ? 'Ruaj ndryshimet' : 'Ruaj produktin'}</button>
         </div>
       </form>
     `)
@@ -330,7 +330,7 @@ export function createApp({ root, marketRepository, productRepository }) {
         <h2>${escapeHtml(title)}</h2>
         <p>${escapeHtml(message)}</p>
         <div class="confirm-actions">
-          <button class="button button-secondary" data-action="close-dialog">Cancel</button>
+          <button class="button button-secondary" data-action="close-dialog">Anulo</button>
           <button class="button button-danger" data-action="confirm-delete">${escapeHtml(confirmLabel)}</button>
         </div>
       </div>
@@ -371,14 +371,14 @@ export function createApp({ root, marketRepository, productRepository }) {
       const market = state.markets.find((item) => item.id === form.elements.id.value)
       const linkedCount = state.products.filter((product) => product.marketId === market.id).length
       confirmDelete({
-        title: `Delete ${market.name}?`,
-        message: linkedCount ? `This will also permanently delete ${linkedCount} linked ${linkedCount === 1 ? 'product' : 'products'} from this device.` : 'This market will be permanently removed from this device.',
-        confirmLabel: 'Delete market',
+        title: `Të fshihet ${market.name}?`,
+        message: linkedCount ? `Do të fshihen përgjithmonë edhe ${linkedCount} ${linkedCount === 1 ? 'produkt i lidhur' : 'produkte të lidhura'} nga kjo pajisje.` : 'Ky market do të fshihet përgjithmonë nga kjo pajisje.',
+        confirmLabel: 'Fshi marketin',
         onConfirm: async () => {
           await marketRepository.remove(market.id)
           closeDialog()
           await refresh()
-          showToast('Market deleted.')
+          showToast('Marketi u fshi.')
         },
       })
     }
@@ -386,14 +386,14 @@ export function createApp({ root, marketRepository, productRepository }) {
       const form = target.closest('form')
       const product = state.products.find((item) => item.id === form.elements.id.value)
       confirmDelete({
-        title: `Delete ${product.name}?`,
-        message: 'This product will be permanently removed from this device.',
-        confirmLabel: 'Delete product',
+        title: `Të fshihet ${product.name}?`,
+        message: 'Ky produkt do të fshihet përgjithmonë nga kjo pajisje.',
+        confirmLabel: 'Fshi produktin',
         onConfirm: async () => {
           await productRepository.remove(product.id)
           closeDialog()
           await refresh()
-          showToast('Product deleted.')
+          showToast('Produkti u fshi.')
         },
       })
     }
@@ -421,17 +421,17 @@ export function createApp({ root, marketRepository, productRepository }) {
         await marketRepository.save(values)
         closeDialog()
         await refresh()
-        showToast(values.id ? 'Market updated.' : 'Market added.')
+        showToast(values.id ? 'Marketi u përditësua.' : 'Marketi u shtua.')
       }
       if (form.dataset.form === 'product') {
         await productRepository.save(values)
         closeDialog()
         await refresh()
-        showToast(values.id ? 'Product updated.' : 'Product saved.')
+        showToast(values.id ? 'Produkti u përditësua.' : 'Produkti u ruajt.')
       }
     } catch {
       submitButton.disabled = false
-      showToast('Could not save. Please try again.')
+      showToast('Nuk u ruajt dot. Provo përsëri.')
     }
   })
 
@@ -445,7 +445,7 @@ export function createApp({ root, marketRepository, productRepository }) {
       try {
         await refresh()
       } catch {
-        root.querySelector('.main-content').innerHTML = emptyState('Storage unavailable', 'Allow local site data in your browser, then reload the app.')
+        root.querySelector('.main-content').innerHTML = emptyState('Ruajtja lokale nuk është e disponueshme', 'Lejo ruajtjen e të dhënave lokale në shfletues dhe pastaj ringarko aplikacionin.')
       }
     },
   }

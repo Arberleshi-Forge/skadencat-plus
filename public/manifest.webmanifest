@@ -1,7 +1,7 @@
 {
-  "name": "Sales Assistant",
-  "short_name": "Sales",
-  "description": "Track markets, products, and expiration dates privately on your device.",
+  "name": "Skadencat+",
+  "short_name": "Skadencat+",
+  "description": "Menaxho marketet, produktet dhe datat e skadencës vetëm në pajisjen tënde.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
