@@ -1,5 +1,16 @@
 import { runTransaction } from './db.js'
 
+function parseReturnHistory(value) {
+  if (Array.isArray(value)) return value
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function createId() {
   return crypto.randomUUID?.() ?? `product-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
@@ -24,6 +35,8 @@ export const productRepository = {
         notes: input.notes.trim(),
         lastCheckedAt: input.lastCheckedAt || null,
         checkNote: (input.checkNote || '').trim(),
+        status: input.status || 'shelf',
+        returnHistory: parseReturnHistory(input.returnHistory),
         createdAt: input.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
