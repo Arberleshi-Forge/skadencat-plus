@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sales-assistant-shell-v1'
+const CACHE_NAME = 'skadencat-plus-shell-v2'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest']
 
 async function cacheApplicationShell() {

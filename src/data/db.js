@@ -1,5 +1,5 @@
 const DATABASE_NAME = 'sales-assistant'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 
 let databasePromise
 
@@ -28,6 +28,26 @@ export function openDatabase() {
         const products = database.createObjectStore('products', { keyPath: 'id' })
         products.createIndex('marketId', 'marketId')
         products.createIndex('expirationDate', 'expirationDate')
+      }
+
+      if (!database.objectStoreNames.contains('deliveries')) {
+        const deliveries = database.createObjectStore('deliveries', { keyPath: 'id' })
+        deliveries.createIndex('marketId', 'marketId')
+        deliveries.createIndex('productId', 'productId')
+        deliveries.createIndex('expirationDate', 'expirationDate')
+        deliveries.createIndex('deliveryDate', 'deliveryDate')
+      }
+
+      if (!database.objectStoreNames.contains('deliveryChecks')) {
+        const deliveryChecks = database.createObjectStore('deliveryChecks', { keyPath: 'id' })
+        deliveryChecks.createIndex('deliveryId', 'deliveryId')
+        deliveryChecks.createIndex('controlDate', 'controlDate')
+      }
+
+      if (!database.objectStoreNames.contains('deliveryStatuses')) {
+        const deliveryStatuses = database.createObjectStore('deliveryStatuses', { keyPath: 'id' })
+        deliveryStatuses.createIndex('deliveryId', 'deliveryId')
+        deliveryStatuses.createIndex('createdAt', 'createdAt')
       }
     })
 

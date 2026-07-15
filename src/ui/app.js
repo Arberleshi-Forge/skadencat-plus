@@ -1,19 +1,24 @@
 import {
   Barcode,
+  Boxes,
   CalendarDays,
   CircleCheck,
   ClipboardCheck,
   Clock3,
   createIcons,
   Hourglass,
+  History,
   LayoutDashboard,
   NotebookText,
   Package,
   Plus,
   RotateCcw,
+  Scale,
   Search,
   Store,
   Tag,
+  Truck,
+  Warehouse,
 } from 'lucide'
 import {
   daysUntil,
@@ -21,11 +26,13 @@ import {
   formatCheckedAt,
   formatDate,
 } from '../utils/dates.js'
+import { calculateStockDistribution } from '../utils/deliveries.js'
 
 const PAGE_TITLES = {
   dashboard: ['Përmbledhje', 'Gjendja e inventarit me një shikim'],
   markets: ['Marketet', 'Menaxho marketet ku shpërndahen produktet.'],
   products: ['Produktet', 'Menaxho produktet dhe datat e skadencës.'],
+  deliveries: ['Dërgesat', 'Menaxho lotet, sasitë dhe kontrollet e stokut.'],
   expiring: ['Skadencat', 'Qëndro në kontroll të datave të skadencës.'],
 }
 
@@ -41,24 +48,29 @@ const PRODUCT_STATUSES = [
   { id: 'warehouse', label: 'Në magazinë', tone: 'purple' },
   { id: 'to-return', label: "Për t'u kthyer", tone: 'orange' },
   { id: 'returned', label: 'E kthyer', tone: 'green' },
-  { id: 'missing', label: 'Nuk gjendet më', tone: 'grey' },
+  { id: 'missing', label: 'Nuk gjendet', tone: 'grey' },
 ]
 
 const LUCIDE_ICONS = {
   Barcode,
+  Boxes,
   CalendarDays,
   CircleCheck,
   ClipboardCheck,
   Clock3,
   Hourglass,
+  History,
   LayoutDashboard,
   NotebookText,
   Package,
   Plus,
   RotateCcw,
+  Scale,
   Search,
   Store,
   Tag,
+  Truck,
+  Warehouse,
 }
 
 function escapeHtml(value = '') {
@@ -80,14 +92,21 @@ function emptyState(title, message) {
   `
 }
 
-export function createApp({ root, marketRepository, productRepository }) {
+export function createApp({ root, marketRepository, productRepository, deliveryRepository }) {
   const state = {
     page: 'dashboard',
     markets: [],
     products: [],
+    deliveries: [],
     query: '',
     filters: {
       marketId: 'all',
+      status: 'all',
+      year: 'all',
+    },
+    deliveryFilters: {
+      marketId: 'all',
+      productId: 'all',
       status: 'all',
       year: 'all',
     },
@@ -95,9 +114,10 @@ export function createApp({ root, marketRepository, productRepository }) {
   }
 
   async function refresh() {
-    ;[state.markets, state.products] = await Promise.all([
+    ;[state.markets, state.products, state.deliveries] = await Promise.all([
       marketRepository.list(),
       productRepository.list(),
+      deliveryRepository.list(),
     ])
     render()
   }
@@ -137,6 +157,50 @@ export function createApp({ root, marketRepository, productRepository }) {
     })
   }
 
+  function deliveryStatus(delivery) {
+    return PRODUCT_STATUSES.some((status) => status.id === delivery.status) ? delivery.status : 'shelf'
+  }
+
+  function deliveryStatusDetails(delivery) {
+    return PRODUCT_STATUSES.find((status) => status.id === deliveryStatus(delivery))
+  }
+
+  function activeDeliveries() {
+    return state.deliveries.filter((delivery) => deliveryStatus(delivery) !== 'returned')
+  }
+
+  function filteredDeliveries() {
+    return state.deliveries.filter((delivery) => {
+      const filters = state.deliveryFilters
+      return (filters.marketId === 'all' || delivery.marketId === filters.marketId)
+        && (filters.productId === 'all' || delivery.productId === filters.productId)
+        && (filters.status === 'all' || deliveryStatus(delivery) === filters.status)
+        && (filters.year === 'all' || delivery.expirationDate.startsWith(filters.year))
+    })
+  }
+
+  function deliveryQuantityLabel(delivery) {
+    if (delivery.unit === 'case') {
+      return `${delivery.caseCount} koli × ${delivery.piecesPerCase} copë = ${delivery.deliveredPieces} copë`
+    }
+    return `${delivery.deliveredPieces} copë`
+  }
+
+  function deliveryDifference(delivery) {
+    return Number(deliveryDistribution(delivery).difference)
+  }
+
+  function deliveryDistribution(delivery) {
+    if (delivery.latestControl) return delivery.latestControl
+    return {
+      shelf: 0,
+      warehouse: 0,
+      returned: deliveryStatus(delivery) === 'returned' ? delivery.deliveredPieces : 0,
+      damaged: 0,
+      difference: deliveryStatus(delivery) === 'returned' ? 0 : delivery.deliveredPieces,
+    }
+  }
+
   function renderIcons(scope = root) {
     createIcons({
       icons: LUCIDE_ICONS,
@@ -161,6 +225,52 @@ export function createApp({ root, marketRepository, productRepository }) {
     const [year, month, day] = value.split('-').map(Number)
     const date = new Date(year, month - 1, day)
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  }
+
+  function isPositiveInteger(value) {
+    return Number.isInteger(Number(value)) && Number(value) > 0
+  }
+
+  function isNonNegativeInteger(value) {
+    return Number.isInteger(Number(value)) && Number(value) >= 0
+  }
+
+  function updateDeliveryCalculation(form) {
+    if (!form) return
+    const isCase = form.elements.unit.value === 'case'
+    form.querySelector('[data-piece-quantity]').hidden = isCase
+    form.querySelector('[data-case-count]').hidden = !isCase
+    form.querySelector('[data-pieces-per-case]').hidden = !isCase
+    form.elements.quantity.required = !isCase
+    form.elements.caseCount.required = isCase
+    form.elements.piecesPerCase.required = isCase
+    const preview = form.querySelector('[data-delivery-calculation]')
+    preview.hidden = !isCase
+    if (!isCase) return
+    const cases = Number(form.elements.caseCount.value) || 0
+    const pieces = Number(form.elements.piecesPerCase.value) || 0
+    preview.textContent = cases && pieces ? `${cases} koli × ${pieces} copë = ${cases * pieces} copë` : 'Plotëso numrin e kolive dhe copët për koli.'
+  }
+
+  function updateControlCalculation(form, delivery) {
+    if (!form || !delivery) return null
+    const inputUnit = form.elements.inputUnit.value
+    const rawAllocated = ['shelf', 'warehouse', 'returned', 'damaged']
+      .reduce((total, field) => total + (Number(form.elements[field].value) || 0), 0)
+    const values = calculateStockDistribution({
+      deliveredPieces: delivery.deliveredPieces,
+      inputUnit,
+      piecesPerCase: delivery.piecesPerCase,
+      shelf: Number(form.elements.shelf.value) || 0,
+      warehouse: Number(form.elements.warehouse.value) || 0,
+      returned: Number(form.elements.returned.value) || 0,
+      damaged: Number(form.elements.damaged.value) || 0,
+    })
+    const { difference } = values
+    const preview = form.querySelector('[data-control-calculation]')
+    preview.classList.toggle('calculation-negative', difference < 0)
+    preview.innerHTML = `${inputUnit === 'case' ? `${rawAllocated} koli × ${delivery.piecesPerCase} copë = ${rawAllocated * delivery.piecesPerCase} copë të shpërndara.<br>` : ''}<strong>Diferenca për verifikim: ${difference} copë</strong>`
+    return { ...values, difference }
   }
 
   function productRow(product, { actions = false } = {}) {
@@ -206,12 +316,18 @@ export function createApp({ root, marketRepository, productRepository }) {
 
   function dashboardPage() {
     const active = activeProducts()
+    const activeDeliveryRecords = activeDeliveries()
     const expiringThirty = active.filter((product) => {
       const days = daysUntil(product.expirationDate)
       return days >= 0 && days <= 30
     }).length
     const expired = active.filter((product) => daysUntil(product.expirationDate) < 0).length
     const urgentProducts = active.filter((product) => daysUntil(product.expirationDate) <= 30).slice(0, 4)
+    const shelfPieces = state.deliveries.reduce((total, delivery) => total + Number(deliveryDistribution(delivery).shelf), 0)
+    const warehousePieces = state.deliveries.reduce((total, delivery) => total + Number(deliveryDistribution(delivery).warehouse), 0)
+    const verificationDifference = activeDeliveryRecords.reduce((total, delivery) => total + deliveryDifference(delivery), 0)
+    const toReturn = state.deliveries.filter((delivery) => deliveryStatus(delivery) === 'to-return').length
+    const returned = state.deliveries.filter((delivery) => deliveryStatus(delivery) === 'returned').length
 
     return `
       <section class="welcome-card">
@@ -244,6 +360,24 @@ export function createApp({ root, marketRepository, productRepository }) {
           <strong>${expired}</strong>
           <span>Produkte të skaduara</span>
         </button>
+      </section>
+
+      <section class="section-block delivery-summary">
+        <div class="section-heading">
+          <div><span class="eyebrow">DËRGESAT</span><h2>Gjendja e dërgesave</h2></div>
+          <button class="text-button" data-page="deliveries">Hap dërgesat</button>
+        </div>
+        <div class="stats-grid delivery-stats-grid">
+          ${[
+            ['DA', activeDeliveryRecords.length, 'Dërgesat aktive', 'stat-blue'],
+            ['TD', state.deliveries.length, 'Totali i dërgesave', 'stat-purple'],
+            ['R', `${shelfPieces}`, 'Në raft (copë)', 'stat-blue'],
+            ['M', `${warehousePieces}`, 'Në magazinë (copë)', 'stat-purple'],
+            ['K', toReturn, "Për t'u kthyer", 'stat-orange'],
+            ['KT', returned, 'Produkte të kthyera', 'stat-red'],
+            ['D', `${verificationDifference}`, 'Diferenca për verifikim', verificationDifference ? 'stat-orange' : 'stat-blue'],
+          ].map(([icon, value, label, tone]) => `<button class="stat-card" data-page="deliveries"><span class="stat-icon ${tone}" aria-hidden="true">${icon}</span><strong>${value}</strong><span>${label}</span></button>`).join('')}
+        </div>
       </section>
 
       <section class="section-block">
@@ -311,6 +445,72 @@ export function createApp({ root, marketRepository, productRepository }) {
     `
   }
 
+  function deliveryRow(delivery) {
+    const latest = delivery.latestControl
+    const status = deliveryStatusDetails(delivery)
+    const remainingDays = daysUntil(delivery.expirationDate)
+    return `
+      <article class="product-row delivery-row">
+        <div class="product-avatar tone-${expirationGroup(delivery.expirationDate)}" aria-hidden="true">${escapeHtml(delivery.productName.charAt(0).toUpperCase())}</div>
+        <div class="product-info">
+          <div class="product-name-line">
+            <div><h3>${escapeHtml(delivery.productName)}</h3>${delivery.lotNumber ? `<p class="delivery-lot">Loti ${escapeHtml(delivery.lotNumber)}</p>` : ''}</div>
+            <span class="status-pill status-${status.tone}">${status.label}</span>
+          </div>
+          <div class="product-meta-grid">
+            <div><span class="product-meta-label"><i data-lucide="store" class="product-field-icon"></i>Marketi</span><strong>${escapeHtml(delivery.marketName)}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="barcode" class="product-field-icon"></i>Barkodi</span><strong>${delivery.barcode ? escapeHtml(delivery.barcode) : 'Nuk është vendosur'}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="truck" class="product-field-icon"></i>Data e dërgesës</span><strong>${escapeHtml(formatDate(delivery.deliveryDate))}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="boxes" class="product-field-icon"></i>Sasia e dërguar</span><strong>${escapeHtml(deliveryQuantityLabel(delivery))}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="calendar-days" class="product-field-icon"></i>Skadon</span><strong>${escapeHtml(formatDate(delivery.expirationDate))}</strong></div>
+            <div class="remaining remaining-${remainingTone(delivery.expirationDate)}"><span class="product-meta-label"><i data-lucide="hourglass" class="product-field-icon"></i>${remainingDays >= 0 ? 'Kanë mbetur' : 'Skaduar prej'}</span><strong>${Math.abs(remainingDays)} ${remainingDays >= 0 ? 'ditë' : 'ditësh'}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="scale" class="product-field-icon"></i>Diferenca për verifikim</span><strong class="${deliveryDifference(delivery) ? 'difference-warning' : 'difference-clear'}">${deliveryDifference(delivery)} copë</strong></div>
+            ${latest ? `
+              <div><span class="product-meta-label"><i data-lucide="clipboard-check" class="product-field-icon"></i>Kontrolli i fundit</span><strong>${escapeHtml(formatDate(latest.controlDate))}</strong></div>
+              <div class="delivery-distribution"><span class="product-meta-label"><i data-lucide="warehouse" class="product-field-icon"></i>Shpërndarja e fundit</span><strong>Në raft ${latest.shelf} · Në magazinë ${latest.warehouse} · Të kthyer ${latest.returned} · Të dëmtuar ${latest.damaged}</strong></div>
+              ${latest.notes ? `<div class="control-note-meta"><span class="product-meta-label"><i data-lucide="notebook-text" class="product-field-icon"></i>Shënimi i kontrollit</span><strong>${escapeHtml(latest.notes)}</strong></div>` : ''}
+            ` : `<div><span class="product-meta-label"><i data-lucide="clipboard-check" class="product-field-icon"></i>Kontrolli i fundit</span><strong>Nuk është kontrolluar ende</strong></div>`}
+            <div class="notes-meta"><span class="product-meta-label"><i data-lucide="notebook-text" class="product-field-icon"></i>Shënime</span><strong>${delivery.notes ? escapeHtml(delivery.notes) : '—'}</strong></div>
+          </div>
+          <div class="product-card-actions">
+            <span class="card-actions-label">Veprimet</span>
+            <div>
+              <button class="checked-button" data-action="check-delivery" data-id="${delivery.id}"><i data-lucide="clipboard-check"></i>Regjistro kontrollin</button>
+              <button class="checked-button checked-button-refresh" data-action="status-delivery" data-id="${delivery.id}"><i data-lucide="tag"></i>Ndrysho statusin</button>
+              ${delivery.controls.length ? `<button class="history-button" data-action="delivery-history" data-id="${delivery.id}"><i data-lucide="history"></i>Historiku (${delivery.controls.length})</button>` : ''}
+            </div>
+          </div>
+        </div>
+      </article>
+    `
+  }
+
+  function deliveriesPage() {
+    const deliveries = filteredDeliveries()
+    const years = [...new Set(state.deliveries.map((delivery) => delivery.expirationDate.slice(0, 4)))].sort()
+    const products = [...new Map([
+      ...state.products.map((product) => [product.id, { id: product.id, name: product.name }]),
+      ...state.deliveries.map((delivery) => [delivery.productId, { id: delivery.productId, name: delivery.productName }]),
+    ]).values()].sort((first, second) => first.name.localeCompare(second.name, 'sq'))
+
+    return `
+      <div class="page-actions">
+        <p>${state.deliveries.length} ${state.deliveries.length === 1 ? 'dërgesë e regjistruar' : 'dërgesa të regjistruara'}</p>
+        <button class="button button-primary" data-action="add-delivery"><i data-lucide="plus" aria-hidden="true"></i>Shto dërgesë</button>
+      </div>
+      <div class="filter-bar delivery-filter-bar" aria-label="Filtrat e dërgesave">
+        <label><span>Marketi</span><select data-delivery-filter="marketId"><option value="all">Të gjitha</option>${state.markets.map((market) => `<option value="${market.id}" ${state.deliveryFilters.marketId === market.id ? 'selected' : ''}>${escapeHtml(market.name)}</option>`).join('')}</select></label>
+        <label><span>Produkti</span><select data-delivery-filter="productId"><option value="all">Të gjitha</option>${products.map((product) => `<option value="${product.id}" ${state.deliveryFilters.productId === product.id ? 'selected' : ''}>${escapeHtml(product.name)}</option>`).join('')}</select></label>
+        <label><span>Statusi</span><select data-delivery-filter="status"><option value="all">Të gjitha</option>${PRODUCT_STATUSES.map((status) => `<option value="${status.id}" ${state.deliveryFilters.status === status.id ? 'selected' : ''}>${status.label}</option>`).join('')}</select></label>
+        <label><span>Viti i skadencës</span><select data-delivery-filter="year"><option value="all">Të gjitha</option>${years.map((year) => `<option value="${year}" ${state.deliveryFilters.year === year ? 'selected' : ''}>${year}</option>`).join('')}</select></label>
+      </div>
+      <div class="result-count">${deliveries.length} ${deliveries.length === 1 ? 'dërgesë' : 'dërgesa'}</div>
+      <section class="list-card delivery-list">
+        ${deliveries.length ? deliveries.map(deliveryRow).join('') : emptyState('Nuk ka ende dërgesa', state.products.length ? 'Shto dërgesën e parë si një lot të ri historik.' : 'Shto fillimisht një produkt dhe pastaj regjistro dërgesën.')}
+      </section>
+    `
+  }
+
   function expiringPage() {
     const products = [...searchedProducts(activeProducts())].sort((first, second) => daysUntil(first.expirationDate) - daysUntil(second.expirationDate))
     return `
@@ -340,6 +540,7 @@ export function createApp({ root, marketRepository, productRepository }) {
   function pageContent() {
     if (state.page === 'markets') return marketsPage()
     if (state.page === 'products') return productsPage()
+    if (state.page === 'deliveries') return deliveriesPage()
     if (state.page === 'expiring') return expiringPage()
     return dashboardPage()
   }
@@ -362,6 +563,7 @@ export function createApp({ root, marketRepository, productRepository }) {
             ['dashboard', 'layout-dashboard', 'Përmbledhje'],
             ['markets', 'store', 'Marketet'],
             ['products', 'package', 'Produktet'],
+            ['deliveries', 'truck', 'Dërgesat'],
             ['expiring', 'clock-3', 'Skadencat'],
           ].map(([page, icon, label]) => `
             <button class="nav-item ${state.page === page ? 'active' : ''}" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>
@@ -447,6 +649,102 @@ export function createApp({ root, marketRepository, productRepository }) {
           <button type="submit" class="button button-primary">${product.id ? 'Ruaj ndryshimet' : 'Ruaj produktin'}</button>
         </div>
       </form>
+    `)
+  }
+
+  function deliveryDialog() {
+    if (!state.markets.length || !state.products.length) {
+      showToast(!state.markets.length ? 'Shto fillimisht një market.' : 'Shto fillimisht një produkt.')
+      return
+    }
+
+    showDialog(`
+      <form data-form="delivery" class="form-sheet delivery-form" novalidate>
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading">
+          <div><span class="eyebrow">DËRGESË E RE</span><h2>Regjistro dërgesën</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
+        </div>
+        <p class="form-intro">Çdo ruajtje krijon një lot të ri historik dhe nuk ndryshon dërgesat e mëparshme.</p>
+        <div class="field-grid">
+          <label class="field"><span>Marketi</span><select name="marketId" required><option value="">Zgjidh marketin</option>${state.markets.map((market) => `<option value="${market.id}">${escapeHtml(market.name)}</option>`).join('')}</select></label>
+          <label class="field"><span>Produkti</span><select name="productId" required data-delivery-product><option value="">Zgjidh produktin</option>${state.products.map((product) => `<option value="${product.id}">${escapeHtml(product.name)} · ${escapeHtml(formatDate(product.expirationDate))}</option>`).join('')}</select></label>
+          <label class="field"><span>Barkodi <em>Opsional</em></span><input name="barcode" maxlength="64" inputmode="numeric" placeholder="Numri i barkodit"></label>
+          <label class="field"><span>Numri i lotit <em>Opsional</em></span><input name="lotNumber" maxlength="80" placeholder="p.sh. LOT-2026-08"></label>
+          <label class="field"><span>Data e dërgesës</span><input name="deliveryDate" type="date" required></label>
+          <label class="field"><span>Data e skadencës</span><input name="expirationDate" type="date" required></label>
+          <label class="field"><span>Njësia</span><select name="unit" required data-delivery-unit><option value="piece">Copë</option><option value="case">Koli</option></select></label>
+          <label class="field" data-piece-quantity><span>Sasia</span><input name="quantity" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
+          <label class="field" data-case-count hidden><span>Sa koli?</span><input name="caseCount" type="number" min="1" step="1" inputmode="numeric" placeholder="p.sh. 5"></label>
+          <label class="field" data-pieces-per-case hidden><span>Sa copë ka 1 koli?</span><input name="piecesPerCase" type="number" min="1" step="1" inputmode="numeric" placeholder="p.sh. 24"></label>
+          <div class="calculation-preview field-wide" data-delivery-calculation hidden></div>
+          <label class="field field-wide"><span>Shënime <em>Opsionale</em></span><textarea name="notes" maxlength="500" rows="3" placeholder="Shto hollësi për këtë dërgesë"></textarea></label>
+        </div>
+        <small class="field-error form-error" data-delivery-error aria-live="polite"></small>
+        <div class="form-actions check-form-actions">
+          <button type="button" class="button button-secondary" data-action="close-dialog">Anulo</button>
+          <button type="submit" class="button button-primary">Ruaj dërgesën</button>
+        </div>
+      </form>
+    `)
+  }
+
+  function deliveryCheckDialog(delivery) {
+    const allowsCases = delivery.unit === 'case'
+    showDialog(`
+      <form data-form="delivery-check" class="form-sheet delivery-check-form" novalidate>
+        <input type="hidden" name="deliveryId" value="${delivery.id}">
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading">
+          <div><span class="eyebrow">KONTROLL STOKU</span><h2>Regjistro kontrollin</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
+        </div>
+        <div class="return-availability">Sasia e dërguar: <strong>${escapeHtml(deliveryQuantityLabel(delivery))}</strong></div>
+        <label class="field"><span>Data e kontrollit</span><input name="controlDate" type="date" required><small class="field-error" data-delivery-check-date-error aria-live="polite"></small></label>
+        ${allowsCases ? `<label class="field"><span>Njësia e kontrollit</span><select name="inputUnit" data-control-unit><option value="piece">Copë</option><option value="case">Koli (${delivery.piecesPerCase} copë)</option></select></label>` : '<input type="hidden" name="inputUnit" value="piece">'}
+        <p class="form-intro">Si është shpërndarë aktualisht stoku?</p>
+        <div class="field-grid distribution-fields">
+          <label class="field"><span>Në raft</span><input name="shelf" type="number" min="0" step="1" inputmode="numeric" value="0"></label>
+          <label class="field"><span>Në magazinë</span><input name="warehouse" type="number" min="0" step="1" inputmode="numeric" value="0"></label>
+          <label class="field"><span>Të kthyer</span><input name="returned" type="number" min="0" step="1" inputmode="numeric" value="0"></label>
+          <label class="field"><span>Të dëmtuar</span><input name="damaged" type="number" min="0" step="1" inputmode="numeric" value="0"></label>
+          <div class="calculation-preview field-wide" data-control-calculation></div>
+          <label class="field field-wide"><span>Shënime <em>Opsionale</em></span><textarea name="notes" maxlength="500" rows="3" placeholder="Shto një shënim për kontrollin"></textarea></label>
+        </div>
+        <small class="field-error form-error" data-delivery-check-error aria-live="polite"></small>
+        <div class="form-actions check-form-actions">
+          <button type="button" class="button button-secondary" data-action="close-dialog">Anulo</button>
+          <button type="submit" class="button button-primary">Ruaj kontrollin</button>
+        </div>
+      </form>
+    `)
+    updateControlCalculation(root.querySelector('[data-form="delivery-check"]'), delivery)
+  }
+
+  function deliveryStatusDialog(delivery) {
+    showDialog(`
+      <form data-form="delivery-status" class="form-sheet">
+        <input type="hidden" name="deliveryId" value="${delivery.id}">
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading">
+          <div><span class="eyebrow">STATUSI</span><h2>Ndrysho statusin</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
+        </div>
+        <label class="field"><span>Statusi</span><select name="status" required>${PRODUCT_STATUSES.map((status) => `<option value="${status.id}" ${deliveryStatus(delivery) === status.id ? 'selected' : ''}>${status.label}</option>`).join('')}</select></label>
+        <div class="form-actions check-form-actions"><button type="button" class="button button-secondary" data-action="close-dialog">Anulo</button><button type="submit" class="button button-primary">Ruaj statusin</button></div>
+      </form>
+    `)
+  }
+
+  function deliveryHistoryDialog(delivery) {
+    showDialog(`
+      <div class="form-sheet history-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading"><div><span class="eyebrow">HISTORIKU</span><h2>${escapeHtml(delivery.productName)}</h2></div><button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button></div>
+        <div class="history-list">
+          ${delivery.controls.map((control) => `<article><div><strong>${escapeHtml(formatDate(control.controlDate))}</strong><span>Diferenca: ${control.difference} copë</span></div><p>Në raft ${control.shelf} · Në magazinë ${control.warehouse} · Të kthyer ${control.returned} · Të dëmtuar ${control.damaged}</p>${control.notes ? `<small>${escapeHtml(control.notes)}</small>` : ''}</article>`).join('')}
+        </div>
+      </div>
     `)
   }
 
@@ -542,6 +840,19 @@ export function createApp({ root, marketRepository, productRepository }) {
     if (action === 'edit-market') marketDialog(state.markets.find((market) => market.id === target.dataset.id))
     if (action === 'add-product') productDialog()
     if (action === 'edit-product') productDialog(state.products.find((product) => product.id === target.dataset.id))
+    if (action === 'add-delivery') deliveryDialog()
+    if (action === 'check-delivery') {
+      const delivery = state.deliveries.find((item) => item.id === target.dataset.id)
+      if (delivery) deliveryCheckDialog(delivery)
+    }
+    if (action === 'status-delivery') {
+      const delivery = state.deliveries.find((item) => item.id === target.dataset.id)
+      if (delivery) deliveryStatusDialog(delivery)
+    }
+    if (action === 'delivery-history') {
+      const delivery = state.deliveries.find((item) => item.id === target.dataset.id)
+      if (delivery) deliveryHistoryDialog(delivery)
+    }
     if (action === 'clear-search') {
       state.query = ''
       render()
@@ -596,9 +907,24 @@ export function createApp({ root, marketRepository, productRepository }) {
   })
 
   root.addEventListener('input', (event) => {
+    const deliveryForm = event.target.closest('[data-form="delivery"]')
+    if (deliveryForm && event.target.matches('[name="caseCount"], [name="piecesPerCase"], [name="quantity"]')) {
+      deliveryForm.querySelector('[data-delivery-error]').replaceChildren()
+      updateDeliveryCalculation(deliveryForm)
+      return
+    }
+    const deliveryCheckForm = event.target.closest('[data-form="delivery-check"]')
+    if (deliveryCheckForm && event.target.matches('[name="shelf"], [name="warehouse"], [name="returned"], [name="damaged"]')) {
+      const delivery = state.deliveries.find((item) => item.id === deliveryCheckForm.elements.deliveryId.value)
+      deliveryCheckForm.querySelector('[data-delivery-check-error]').replaceChildren()
+      updateControlCalculation(deliveryCheckForm, delivery)
+      return
+    }
     if (event.target.matches('[name="controlDate"]')) {
       event.target.removeAttribute('aria-invalid')
-      event.target.closest('form')?.querySelector('[data-control-date-error]')?.replaceChildren()
+      const form = event.target.closest('form')
+      form?.querySelector('[data-control-date-error]')?.replaceChildren()
+      form?.querySelector('[data-delivery-check-date-error]')?.replaceChildren()
       return
     }
     if (event.target.matches('[name="returnDate"]')) {
@@ -621,9 +947,35 @@ export function createApp({ root, marketRepository, productRepository }) {
   })
 
   root.addEventListener('change', (event) => {
-    if (!event.target.matches('[data-filter]')) return
-    state.filters[event.target.dataset.filter] = event.target.value
-    render()
+    if (event.target.matches('[data-filter]')) {
+      state.filters[event.target.dataset.filter] = event.target.value
+      render()
+      return
+    }
+    if (event.target.matches('[data-delivery-filter]')) {
+      state.deliveryFilters[event.target.dataset.deliveryFilter] = event.target.value
+      render()
+      return
+    }
+    if (event.target.matches('[data-delivery-unit]')) {
+      updateDeliveryCalculation(event.target.closest('form'))
+      return
+    }
+    if (event.target.matches('[data-delivery-product]')) {
+      const product = state.products.find((item) => item.id === event.target.value)
+      const form = event.target.closest('form')
+      if (product) {
+        form.elements.marketId.value = product.marketId
+        form.elements.barcode.value = product.barcode || ''
+        form.elements.expirationDate.value = product.expirationDate
+      }
+      return
+    }
+    if (event.target.matches('[data-control-unit]')) {
+      const form = event.target.closest('form')
+      const delivery = state.deliveries.find((item) => item.id === form.elements.deliveryId.value)
+      updateControlCalculation(form, delivery)
+    }
   })
 
   root.addEventListener('submit', async (event) => {
@@ -631,6 +983,95 @@ export function createApp({ root, marketRepository, productRepository }) {
     const form = event.target
     const values = Object.fromEntries(new FormData(form))
     const submitButton = form.querySelector('[type="submit"]')
+
+    if (form.dataset.form === 'delivery') {
+      const product = state.products.find((item) => item.id === values.productId)
+      const market = state.markets.find((item) => item.id === values.marketId)
+      const isCase = values.unit === 'case'
+      const quantityIsValid = isCase
+        ? isPositiveInteger(values.caseCount) && isPositiveInteger(values.piecesPerCase)
+        : isPositiveInteger(values.quantity)
+      const error = form.querySelector('[data-delivery-error]')
+
+      if (!market || !product || !isValidDateInput(values.deliveryDate) || !isValidDateInput(values.expirationDate) || !quantityIsValid) {
+        error.textContent = 'Plotëso të gjitha fushat e detyrueshme me vlera të vlefshme.'
+        return
+      }
+
+      submitButton.disabled = true
+      try {
+        await deliveryRepository.add({
+          ...values,
+          marketName: market.name,
+          productName: product.name,
+          status: 'shelf',
+        })
+        closeDialog()
+        await refresh()
+        showToast('Dërgesa u ruajt si lot i ri.')
+      } catch {
+        submitButton.disabled = false
+        showToast('Dërgesa nuk u ruajt dot. Provo përsëri.')
+      }
+      return
+    }
+
+    if (form.dataset.form === 'delivery-check') {
+      const delivery = state.deliveries.find((item) => item.id === values.deliveryId)
+      const dateError = form.querySelector('[data-delivery-check-date-error]')
+      const error = form.querySelector('[data-delivery-check-error]')
+      const quantityFields = ['shelf', 'warehouse', 'returned', 'damaged']
+      if (!isValidDateInput(values.controlDate)) {
+        dateError.textContent = 'Zgjidh datën e kontrollit.'
+        form.elements.controlDate.focus()
+        return
+      }
+      if (!delivery || quantityFields.some((field) => !isNonNegativeInteger(values[field]))) {
+        error.textContent = 'Vendos sasi të plota dhe jo negative.'
+        return
+      }
+      const calculation = updateControlCalculation(form, delivery)
+      if (calculation.difference < 0) {
+        error.textContent = 'Shuma e stokut nuk mund të kalojë sasinë e dërguar.'
+        return
+      }
+
+      submitButton.disabled = true
+      try {
+        await deliveryRepository.addCheck({
+          deliveryId: delivery.id,
+          controlDate: values.controlDate,
+          inputUnit: values.inputUnit,
+          ...calculation,
+          notes: values.notes,
+        })
+        if (calculation.returned === Number(delivery.deliveredPieces) && calculation.shelf === 0 && calculation.warehouse === 0 && calculation.damaged === 0) {
+          await deliveryRepository.setStatus(delivery.id, 'returned')
+        }
+        closeDialog()
+        await refresh()
+        showToast('Kontrolli u shtua në historik.')
+      } catch {
+        submitButton.disabled = false
+        showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')
+      }
+      return
+    }
+
+    if (form.dataset.form === 'delivery-status') {
+      if (!PRODUCT_STATUSES.some((status) => status.id === values.status)) return
+      submitButton.disabled = true
+      try {
+        await deliveryRepository.setStatus(values.deliveryId, values.status)
+        closeDialog()
+        await refresh()
+        showToast('Statusi u përditësua.')
+      } catch {
+        submitButton.disabled = false
+        showToast('Statusi nuk u ruajt dot. Provo përsëri.')
+      }
+      return
+    }
 
     if (form.dataset.form === 'check') {
       const dateInput = form.elements.controlDate

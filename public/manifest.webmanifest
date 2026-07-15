@@ -1,7 +1,7 @@
 {
   "name": "Skadencat+",
   "short_name": "Skadencat+",
-  "description": "Menaxho marketet, produktet dhe datat e skadencës vetëm në pajisjen tënde.",
+  "description": "Menaxho dërgesat, lotet, produktet dhe datat e skadencës vetëm në pajisjen tënde.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
