@@ -3,7 +3,6 @@ import {
   expirationGroup,
   formatCheckedAt,
   formatDate,
-  formatRelativeExpiration,
 } from '../utils/dates.js'
 
 const PAGE_TITLES = {
@@ -80,6 +79,9 @@ export function createApp({ root, marketRepository, productRepository }) {
   function productRow(product, { actions = false } = {}) {
     const group = expirationGroup(product.expirationDate)
     const quantity = Number.isFinite(Number(product.quantity)) ? Number(product.quantity) : 0
+    const remainingDays = daysUntil(product.expirationDate)
+    const hasBeenChecked = Boolean(product.lastCheckedAt)
+    const checkButtonLabel = hasBeenChecked ? '↻ Përditëso kontrollin' : '✔ E kontrollova'
     return `
       <article class="product-row">
         <div class="product-avatar tone-${group}" aria-hidden="true">${escapeHtml(product.name.charAt(0).toUpperCase())}</div>
@@ -91,14 +93,14 @@ export function createApp({ root, marketRepository, productRepository }) {
             ` : ''}
           </div>
           <div class="product-meta-grid">
-            <div><span>Marketi</span><strong>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</strong></div>
-            <div><span>Sasia</span><strong>${quantity} copë</strong></div>
-            <div><span>Data e skadencës</span><strong>${escapeHtml(formatDate(product.expirationDate))}</strong></div>
-            <div class="remaining remaining-${remainingTone(product.expirationDate)}"><span>Afati</span><strong>${escapeHtml(formatRelativeExpiration(product.expirationDate))}</strong></div>
-            <div class="checked-meta"><span>Kontrolluar më:</span><strong>${escapeHtml(formatCheckedAt(product.lastCheckedAt))}</strong></div>
-            <div class="notes-meta"><span>Shënime</span><strong>${product.notes ? escapeHtml(product.notes) : '—'}</strong></div>
+            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">🏪</span>Marketi</span><strong>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</strong></div>
+            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📦</span>Sasia</span><strong>${quantity} copë</strong></div>
+            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📅</span>Skadon</span><strong>${escapeHtml(formatDate(product.expirationDate))}</strong></div>
+            <div class="remaining remaining-${remainingTone(product.expirationDate)}"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">⏳</span>${remainingDays >= 0 ? 'Kanë mbetur' : 'Skaduar prej'}</span><strong>${Math.abs(remainingDays)} ${remainingDays >= 0 ? 'ditë' : 'ditësh'}</strong></div>
+            <div class="checked-meta"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">✅</span>Kontrolluar më</span><strong>${escapeHtml(formatCheckedAt(product.lastCheckedAt))}</strong></div>
+            <div class="notes-meta"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📝</span>Shënime</span><strong>${product.notes ? escapeHtml(product.notes) : '—'}</strong></div>
           </div>
-          <button class="checked-button" data-action="check-product" data-id="${product.id}" aria-label="Shëno ${escapeHtml(product.name)} si të kontrolluar">✔ E kontrollova</button>
+          <button class="checked-button ${hasBeenChecked ? 'checked-button-refresh' : ''}" data-action="check-product" data-id="${product.id}" aria-label="${hasBeenChecked ? 'Përditëso kontrollin për' : 'Shëno si të kontrolluar'} ${escapeHtml(product.name)}">${checkButtonLabel}</button>
         </div>
       </article>
     `
@@ -384,6 +386,7 @@ export function createApp({ root, marketRepository, productRepository }) {
     if (action === 'check-product') {
       const product = state.products.find((item) => item.id === target.dataset.id)
       if (!product) return
+      const wasChecked = Boolean(product.lastCheckedAt)
       target.disabled = true
       try {
         await productRepository.save({
@@ -392,7 +395,7 @@ export function createApp({ root, marketRepository, productRepository }) {
           lastCheckedAt: new Date().toISOString(),
         })
         await refresh()
-        showToast('Produkti u shënua si i kontrolluar.')
+        showToast(wasChecked ? 'Kontrolli u përditësua.' : 'Produkti u shënua si i kontrolluar.')
       } catch {
         target.disabled = false
         showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')

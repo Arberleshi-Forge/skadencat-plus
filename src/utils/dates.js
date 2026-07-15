@@ -23,11 +23,16 @@ export function expirationGroup(dateString) {
 }
 
 export function formatDate(dateString) {
-  return new Intl.DateTimeFormat('sq-AL', {
-    month: 'short',
+  const parts = new Intl.DateTimeFormat('sq-AL', {
+    month: 'long',
     day: 'numeric',
     year: 'numeric',
-  }).format(toLocalMidnight(dateString))
+  }).formatToParts(toLocalMidnight(dateString))
+
+  const part = (type) => parts.find((item) => item.type === type)?.value || ''
+  const month = part('month')
+  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
+  return `${part('day')} ${capitalizedMonth} ${part('year')}`
 }
 
 export function formatRelativeExpiration(dateString) {
@@ -37,7 +42,7 @@ export function formatRelativeExpiration(dateString) {
 }
 
 export function formatCheckedAt(dateString) {
-  if (!dateString) return 'Ende pa u kontrolluar'
+  if (!dateString) return 'Nuk është kontrolluar ende'
 
   const parts = new Intl.DateTimeFormat('sq-AL', {
     day: 'numeric',
@@ -51,5 +56,5 @@ export function formatCheckedAt(dateString) {
   const part = (type) => parts.find((item) => item.type === type)?.value || ''
   const month = part('month')
   const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
-  return `${part('day')} ${capitalizedMonth} ${part('year')}, ${part('hour')}:${part('minute')}`
+  return `${part('day')} ${capitalizedMonth} ${part('year')} • ${part('hour')}:${part('minute')}`
 }
