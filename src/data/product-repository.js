@@ -23,6 +23,7 @@ export const productRepository = {
         expirationDate: input.expirationDate,
         notes: input.notes.trim(),
         lastCheckedAt: input.lastCheckedAt || null,
+        checkNote: (input.checkNote || '').trim(),
         createdAt: input.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }

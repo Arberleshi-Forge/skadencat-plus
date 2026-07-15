@@ -48,13 +48,10 @@ export function formatCheckedAt(dateString) {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(new Date(dateString))
+  }).formatToParts(dateString.includes('T') ? new Date(dateString) : toLocalMidnight(dateString))
 
   const part = (type) => parts.find((item) => item.type === type)?.value || ''
   const month = part('month')
   const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
-  return `${part('day')} ${capitalizedMonth} ${part('year')} • ${part('hour')}:${part('minute')}`
+  return `${part('day')} ${capitalizedMonth} ${part('year')}`
 }

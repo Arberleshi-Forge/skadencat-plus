@@ -76,12 +76,23 @@ export function createApp({ root, marketRepository, productRepository }) {
     return 'success'
   }
 
+  function dateInputValue(dateString) {
+    return dateString ? dateString.slice(0, 10) : ''
+  }
+
+  function isValidDateInput(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  }
+
   function productRow(product, { actions = false } = {}) {
     const group = expirationGroup(product.expirationDate)
     const quantity = Number.isFinite(Number(product.quantity)) ? Number(product.quantity) : 0
     const remainingDays = daysUntil(product.expirationDate)
     const hasBeenChecked = Boolean(product.lastCheckedAt)
-    const checkButtonLabel = hasBeenChecked ? '↻ Përditëso kontrollin' : '✔ E kontrollova'
+    const checkButtonLabel = hasBeenChecked ? 'Përditëso kontrollin' : '✓ E kontrollova'
     return `
       <article class="product-row">
         <div class="product-avatar tone-${group}" aria-hidden="true">${escapeHtml(product.name.charAt(0).toUpperCase())}</div>
@@ -93,11 +104,13 @@ export function createApp({ root, marketRepository, productRepository }) {
             ` : ''}
           </div>
           <div class="product-meta-grid">
-            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">🏪</span>Marketi</span><strong>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</strong></div>
+            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">🏪</span>Marketi</span><strong>${escapeHtml(marketName(product.marketId))}</strong></div>
+            <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">▥</span>Barkodi</span><strong>${product.barcode ? escapeHtml(product.barcode) : 'Nuk është vendosur'}</strong></div>
             <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📦</span>Sasia</span><strong>${quantity} copë</strong></div>
             <div><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📅</span>Skadon</span><strong>${escapeHtml(formatDate(product.expirationDate))}</strong></div>
             <div class="remaining remaining-${remainingTone(product.expirationDate)}"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">⏳</span>${remainingDays >= 0 ? 'Kanë mbetur' : 'Skaduar prej'}</span><strong>${Math.abs(remainingDays)} ${remainingDays >= 0 ? 'ditë' : 'ditësh'}</strong></div>
             <div class="checked-meta"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">✅</span>Kontrolluar më</span><strong>${escapeHtml(formatCheckedAt(product.lastCheckedAt))}</strong></div>
+            ${product.checkNote ? `<div class="control-note-meta"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">☑</span>Shënimi i kontrollit</span><strong>${escapeHtml(product.checkNote)}</strong></div>` : ''}
             <div class="notes-meta"><span class="product-meta-label"><span class="product-field-icon" aria-hidden="true">📝</span>Shënime</span><strong>${product.notes ? escapeHtml(product.notes) : '—'}</strong></div>
           </div>
           <button class="checked-button ${hasBeenChecked ? 'checked-button-refresh' : ''}" data-action="check-product" data-id="${product.id}" aria-label="${hasBeenChecked ? 'Përditëso kontrollin për' : 'Shëno si të kontrolluar'} ${escapeHtml(product.name)}">${checkButtonLabel}</button>
@@ -279,7 +292,7 @@ export function createApp({ root, marketRepository, productRepository }) {
   function showDialog(content) {
     const overlay = root.querySelector('#overlay-root')
     overlay.innerHTML = `<div class="dialog-backdrop" data-action="close-dialog"><div class="sheet" role="dialog" aria-modal="true">${content}</div></div>`
-    overlay.querySelector('input, select, textarea, button')?.focus()
+    overlay.querySelector('input:not([type="hidden"]), select, textarea, button')?.focus()
   }
 
   function closeDialog() {
@@ -319,6 +332,7 @@ export function createApp({ root, marketRepository, productRepository }) {
         <input type="hidden" name="id" value="${product.id || ''}">
         <input type="hidden" name="createdAt" value="${product.createdAt || ''}">
         <input type="hidden" name="lastCheckedAt" value="${product.lastCheckedAt || ''}">
+        <input type="hidden" name="checkNote" value="${escapeHtml(product.checkNote || '')}">
         <div class="sheet-handle"></div>
         <div class="sheet-heading">
           <div><span class="eyebrow">PRODUKT</span><h2>${product.id ? 'Modifiko produktin' : 'Shto një produkt të ri'}</h2></div>
@@ -335,6 +349,32 @@ export function createApp({ root, marketRepository, productRepository }) {
         <div class="form-actions">
           ${product.id ? '<button type="button" class="button button-danger-text" data-action="delete-product">Fshi</button>' : '<span></span>'}
           <button type="submit" class="button button-primary">${product.id ? 'Ruaj ndryshimet' : 'Ruaj produktin'}</button>
+        </div>
+      </form>
+    `)
+  }
+
+  function checkDialog(product) {
+    showDialog(`
+      <form data-form="check" class="form-sheet check-form" novalidate>
+        <input type="hidden" name="productId" value="${product.id}">
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading">
+          <div><span class="eyebrow">KONTROLLI</span><h2>Regjistro kontrollin</h2></div>
+          <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
+        </div>
+        <label class="field control-date-field">
+          <span>Data e kontrollit</span>
+          <input name="controlDate" type="date" required value="${dateInputValue(product.lastCheckedAt)}" aria-describedby="control-date-error">
+          <small class="field-error" id="control-date-error" data-control-date-error aria-live="polite"></small>
+        </label>
+        <label class="field">
+          <span>Shënim për kontrollin <em>Opsional</em></span>
+          <textarea name="checkNote" maxlength="500" rows="3" placeholder="Shto një shënim për këtë kontroll">${escapeHtml(product.checkNote || '')}</textarea>
+        </label>
+        <div class="form-actions check-form-actions">
+          <button type="button" class="button button-secondary" data-action="close-dialog">Anulo</button>
+          <button type="submit" class="button button-primary">Ruaj kontrollin</button>
         </div>
       </form>
     `)
@@ -386,20 +426,7 @@ export function createApp({ root, marketRepository, productRepository }) {
     if (action === 'check-product') {
       const product = state.products.find((item) => item.id === target.dataset.id)
       if (!product) return
-      const wasChecked = Boolean(product.lastCheckedAt)
-      target.disabled = true
-      try {
-        await productRepository.save({
-          ...product,
-          quantity: product.quantity ?? 0,
-          lastCheckedAt: new Date().toISOString(),
-        })
-        await refresh()
-        showToast(wasChecked ? 'Kontrolli u përditësua.' : 'Produkti u shënua si i kontrolluar.')
-      } catch {
-        target.disabled = false
-        showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')
-      }
+      checkDialog(product)
     }
     if (action === 'delete-market') {
       const form = target.closest('form')
@@ -435,6 +462,11 @@ export function createApp({ root, marketRepository, productRepository }) {
   })
 
   root.addEventListener('input', (event) => {
+    if (event.target.matches('[name="controlDate"]')) {
+      event.target.removeAttribute('aria-invalid')
+      event.target.closest('form')?.querySelector('[data-control-date-error]')?.replaceChildren()
+      return
+    }
     if (!event.target.matches('[data-search]')) return
     const cursor = event.target.selectionStart
     state.query = event.target.value
@@ -449,6 +481,40 @@ export function createApp({ root, marketRepository, productRepository }) {
     const form = event.target
     const values = Object.fromEntries(new FormData(form))
     const submitButton = form.querySelector('[type="submit"]')
+
+    if (form.dataset.form === 'check') {
+      const dateInput = form.elements.controlDate
+      if (!isValidDateInput(values.controlDate)) {
+        dateInput.setAttribute('aria-invalid', 'true')
+        form.querySelector('[data-control-date-error]').textContent = 'Zgjidh datën e kontrollit.'
+        dateInput.focus()
+        return
+      }
+
+      const product = state.products.find((item) => item.id === values.productId)
+      if (!product) {
+        showToast('Produkti nuk u gjet.')
+        return
+      }
+
+      submitButton.disabled = true
+      try {
+        await productRepository.save({
+          ...product,
+          quantity: product.quantity ?? 0,
+          lastCheckedAt: values.controlDate,
+          checkNote: values.checkNote,
+        })
+        closeDialog()
+        await refresh()
+        showToast(product.lastCheckedAt ? 'Kontrolli u përditësua.' : 'Kontrolli u ruajt.')
+      } catch {
+        submitButton.disabled = false
+        showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')
+      }
+      return
+    }
+
     submitButton.disabled = true
 
     try {

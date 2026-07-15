@@ -485,7 +485,8 @@ p {
 .product-meta-grid .remaining-attention strong { color: #b67f12; }
 .product-meta-grid .remaining-success strong { color: var(--green); }
 
-.notes-meta strong {
+.notes-meta strong,
+.control-note-meta strong {
   white-space: pre-line;
 }
 
@@ -524,6 +525,23 @@ p {
 .checked-button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.control-date-field input[aria-invalid="true"] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(218, 78, 88, 0.1);
+}
+
+.field-error {
+  min-height: 16px;
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.check-form-actions .button {
+  flex: 1;
 }
 
 .market-address {
