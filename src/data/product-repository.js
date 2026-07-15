@@ -16,6 +16,15 @@ function createId() {
 }
 
 export const productRepository = {
+  async findByBarcode(barcode) {
+    const normalizedBarcode = String(barcode || '').trim()
+    if (!normalizedBarcode) return null
+    return runTransaction(['products'], 'readonly', async ({ products }, request) => {
+      const records = await request(products.getAll())
+      return records.find((product) => String(product.barcode || '').trim() === normalizedBarcode) || null
+    })
+  },
+
   async list() {
     return runTransaction(['products'], 'readonly', async ({ products }, request) => {
       const records = await request(products.getAll())

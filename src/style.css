@@ -741,7 +741,7 @@ p {
 }
 
 .delivery-filter-bar {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .filter-bar label {
@@ -890,7 +890,7 @@ p {
   border-top: 1px solid rgba(216, 221, 231, 0.86);
   padding: 7px max(10px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(10px, env(safe-area-inset-right));
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 -10px 30px rgba(23, 32, 53, 0.05);
   backdrop-filter: blur(20px);
@@ -941,6 +941,75 @@ p {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
+}
+
+.barcode-match {
+  border: 1px solid #dfe5f8;
+  border-radius: 13px;
+  padding: 11px 13px;
+  display: grid;
+  gap: 4px;
+  color: #4c5e8c;
+  background: #f3f6ff;
+  font-size: 11px;
+}
+
+.barcode-match[hidden] {
+  display: none;
+}
+
+.barcode-match strong,
+.barcode-match span {
+  line-height: 1.4;
+}
+
+.barcode-match button {
+  width: fit-content;
+  border: 0;
+  padding: 5px 0 0;
+  color: var(--blue);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.barcode-match.barcode-warning {
+  border-color: #f2d6bd;
+  color: #9b5b26;
+  background: #fff7ef;
+}
+
+.selected-delivery-details {
+  border: 1px solid #e1e5ec;
+  border-radius: 15px;
+  padding: 12px 13px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  background: #f7f8fa;
+}
+
+.selected-delivery-details[hidden] {
+  display: none;
+}
+
+.selected-delivery-details div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.selected-delivery-details span {
+  color: #8d96a7;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.selected-delivery-details strong {
+  overflow-wrap: anywhere;
+  color: #4f596e;
+  font-size: 11px;
 }
 
 .calculation-preview {
@@ -1219,7 +1288,7 @@ p {
   .main-content { padding-inline: 24px; }
   .welcome-card { padding: 32px; flex-direction: row; align-items: end; }
   .stats-grid { grid-template-columns: repeat(4, 1fr); }
-  .delivery-filter-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .delivery-filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .stat-card { min-height: 110px; }
   .field-grid { grid-template-columns: repeat(2, 1fr); }
   .field-wide { grid-column: 1 / -1; }
@@ -1232,7 +1301,7 @@ p {
   .main-content { padding-inline: 28px; }
   .bottom-nav {
     inset: 22px auto auto 50%;
-    width: 550px;
+    width: 650px;
     height: 60px;
     border: 1px solid rgba(216, 221, 231, 0.9);
     border-radius: 19px;

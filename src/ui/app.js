@@ -26,13 +26,14 @@ import {
   formatCheckedAt,
   formatDate,
 } from '../utils/dates.js'
-import { calculateStockDistribution } from '../utils/deliveries.js'
+import { calculateDeliveredPieces, calculateStockDistribution } from '../utils/deliveries.js'
 
 const PAGE_TITLES = {
   dashboard: ['Përmbledhje', 'Gjendja e inventarit me një shikim'],
   markets: ['Marketet', 'Menaxho marketet ku shpërndahen produktet.'],
   products: ['Produktet', 'Menaxho produktet dhe datat e skadencës.'],
   deliveries: ['Dërgesat', 'Menaxho lotet, sasitë dhe kontrollet e stokut.'],
+  controls: ['Kontrollet', 'Regjistro kontrollet fizike të produkteve në market.'],
   expiring: ['Skadencat', 'Qëndro në kontroll të datave të skadencës.'],
 }
 
@@ -107,7 +108,6 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
     deliveryFilters: {
       marketId: 'all',
       productId: 'all',
-      status: 'all',
       year: 'all',
     },
     expandedGroups: new Set(GROUPS.map(({ id }) => id)),
@@ -174,7 +174,6 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
       const filters = state.deliveryFilters
       return (filters.marketId === 'all' || delivery.marketId === filters.marketId)
         && (filters.productId === 'all' || delivery.productId === filters.productId)
-        && (filters.status === 'all' || deliveryStatus(delivery) === filters.status)
         && (filters.year === 'all' || delivery.expirationDate.startsWith(filters.year))
     })
   }
@@ -233,6 +232,35 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
 
   function isNonNegativeInteger(value) {
     return Number.isInteger(Number(value)) && Number(value) >= 0
+  }
+
+  function normalizeProductName(value) {
+    return String(value || '').trim().toLocaleLowerCase('sq-AL')
+  }
+
+  function findProductByBarcode(barcode) {
+    const normalizedBarcode = String(barcode || '').trim()
+    if (!normalizedBarcode) return null
+    return state.products.find((product) => String(product.barcode || '').trim() === normalizedBarcode) || null
+  }
+
+  function updateDeliveryProductMatch(form) {
+    if (!form) return
+    const barcode = form.elements.barcode.value.trim()
+    const productName = form.elements.productName.value.trim()
+    const existing = findProductByBarcode(barcode)
+    const match = form.querySelector('[data-barcode-match]')
+    match.hidden = !existing
+    form.dataset.matchedProductId = existing?.id || ''
+    if (!existing) {
+      match.replaceChildren()
+      return
+    }
+    const namesDiffer = productName && normalizeProductName(productName) !== normalizeProductName(existing.name)
+    match.classList.toggle('barcode-warning', namesDiffer)
+    match.innerHTML = namesDiffer
+      ? `<strong>Ky barkod ekziston si “${escapeHtml(existing.name)}”.</strong><span>Përdor produktin ekzistues ose korrigjo emrin.</span><button type="button" data-action="use-existing-product" data-id="${existing.id}">Përdor ${escapeHtml(existing.name)}</button>`
+      : `<strong>Produkti ekzistues do të përdoret.</strong><span>${escapeHtml(existing.name)}</span>`
   }
 
   function updateDeliveryCalculation(form) {
@@ -467,7 +495,7 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
             <div><span class="product-meta-label"><i data-lucide="scale" class="product-field-icon"></i>Diferenca për verifikim</span><strong class="${deliveryDifference(delivery) ? 'difference-warning' : 'difference-clear'}">${deliveryDifference(delivery)} copë</strong></div>
             ${latest ? `
               <div><span class="product-meta-label"><i data-lucide="clipboard-check" class="product-field-icon"></i>Kontrolli i fundit</span><strong>${escapeHtml(formatDate(latest.controlDate))}</strong></div>
-              <div class="delivery-distribution"><span class="product-meta-label"><i data-lucide="warehouse" class="product-field-icon"></i>Shpërndarja e fundit</span><strong>Në raft ${latest.shelf} · Në magazinë ${latest.warehouse} · Të kthyer ${latest.returned} · Të dëmtuar ${latest.damaged}</strong></div>
+              <div class="delivery-distribution"><span class="product-meta-label"><i data-lucide="warehouse" class="product-field-icon"></i>Shpërndarja e fundit</span><strong>Në raft ${latest.shelf} · Në magazinë ${latest.warehouse} · Për t'u kthyer ${Number(latest.toReturn || 0)} · Të kthyer ${latest.returned}${latest.damaged ? ` · Të dëmtuar ${latest.damaged}` : ''}</strong></div>
               ${latest.notes ? `<div class="control-note-meta"><span class="product-meta-label"><i data-lucide="notebook-text" class="product-field-icon"></i>Shënimi i kontrollit</span><strong>${escapeHtml(latest.notes)}</strong></div>` : ''}
             ` : `<div><span class="product-meta-label"><i data-lucide="clipboard-check" class="product-field-icon"></i>Kontrolli i fundit</span><strong>Nuk është kontrolluar ende</strong></div>`}
             <div class="notes-meta"><span class="product-meta-label"><i data-lucide="notebook-text" class="product-field-icon"></i>Shënime</span><strong>${delivery.notes ? escapeHtml(delivery.notes) : '—'}</strong></div>
@@ -501,12 +529,53 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
       <div class="filter-bar delivery-filter-bar" aria-label="Filtrat e dërgesave">
         <label><span>Marketi</span><select data-delivery-filter="marketId"><option value="all">Të gjitha</option>${state.markets.map((market) => `<option value="${market.id}" ${state.deliveryFilters.marketId === market.id ? 'selected' : ''}>${escapeHtml(market.name)}</option>`).join('')}</select></label>
         <label><span>Produkti</span><select data-delivery-filter="productId"><option value="all">Të gjitha</option>${products.map((product) => `<option value="${product.id}" ${state.deliveryFilters.productId === product.id ? 'selected' : ''}>${escapeHtml(product.name)}</option>`).join('')}</select></label>
-        <label><span>Statusi</span><select data-delivery-filter="status"><option value="all">Të gjitha</option>${PRODUCT_STATUSES.map((status) => `<option value="${status.id}" ${state.deliveryFilters.status === status.id ? 'selected' : ''}>${status.label}</option>`).join('')}</select></label>
         <label><span>Viti i skadencës</span><select data-delivery-filter="year"><option value="all">Të gjitha</option>${years.map((year) => `<option value="${year}" ${state.deliveryFilters.year === year ? 'selected' : ''}>${year}</option>`).join('')}</select></label>
       </div>
       <div class="result-count">${deliveries.length} ${deliveries.length === 1 ? 'dërgesë' : 'dërgesa'}</div>
       <section class="list-card delivery-list">
         ${deliveries.length ? deliveries.map(deliveryRow).join('') : emptyState('Nuk ka ende dërgesa', state.products.length ? 'Shto dërgesën e parë si një lot të ri historik.' : 'Shto fillimisht një produkt dhe pastaj regjistro dërgesën.')}
+      </section>
+    `
+  }
+
+  function controlRecords() {
+    return state.deliveries
+      .flatMap((delivery) => delivery.controls.map((control) => ({ delivery, control })))
+      .sort((first, second) => second.control.controlDate.localeCompare(first.control.controlDate) || second.control.createdAt.localeCompare(first.control.createdAt))
+  }
+
+  function controlRow({ delivery, control }) {
+    return `
+      <article class="product-row control-row">
+        <div class="product-avatar tone-${expirationGroup(delivery.expirationDate)}" aria-hidden="true">${escapeHtml(delivery.productName.charAt(0).toUpperCase())}</div>
+        <div class="product-info">
+          <div class="product-name-line"><h3>${escapeHtml(delivery.productName)}</h3></div>
+          <div class="product-meta-grid">
+            <div><span class="product-meta-label"><i data-lucide="store" class="product-field-icon"></i>Marketi</span><strong>${escapeHtml(delivery.marketName)}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="calendar-days" class="product-field-icon"></i>Data e kontrollit</span><strong>${escapeHtml(formatDate(control.controlDate))}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="barcode" class="product-field-icon"></i>Barkodi</span><strong>${delivery.barcode ? escapeHtml(delivery.barcode) : 'Nuk është vendosur'}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="truck" class="product-field-icon"></i>Dërgesa ose loti</span><strong>${delivery.lotNumber ? `Loti ${escapeHtml(delivery.lotNumber)}` : escapeHtml(formatDate(delivery.deliveryDate))}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="calendar-days" class="product-field-icon"></i>Data e skadencës</span><strong>${escapeHtml(formatDate(delivery.expirationDate))}</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="package" class="product-field-icon"></i>Sasia në raft</span><strong>${control.shelf} copë</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="warehouse" class="product-field-icon"></i>Sasia në magazinë</span><strong>${control.warehouse} copë</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="rotate-ccw" class="product-field-icon"></i>Sasia për t'u kthyer</span><strong>${Number(control.toReturn || 0)} copë</strong></div>
+            <div><span class="product-meta-label"><i data-lucide="circle-check" class="product-field-icon"></i>Sasia e kthyer</span><strong>${control.returned} copë</strong></div>
+            <div class="notes-meta"><span class="product-meta-label"><i data-lucide="notebook-text" class="product-field-icon"></i>Shënim</span><strong>${control.notes ? escapeHtml(control.notes) : '—'}</strong></div>
+          </div>
+        </div>
+      </article>
+    `
+  }
+
+  function controlsPage() {
+    const controls = controlRecords()
+    return `
+      <div class="page-actions">
+        <p>${controls.length} ${controls.length === 1 ? 'kontroll i regjistruar' : 'kontrolle të regjistruara'}</p>
+        <button class="button button-primary" data-action="add-control"><i data-lucide="plus" aria-hidden="true"></i>Shto kontroll</button>
+      </div>
+      <section class="list-card control-list">
+        ${controls.length ? controls.map(controlRow).join('') : emptyState('Nuk ka ende kontrolle', state.deliveries.length ? 'Regjistro kontrollin e parë fizik për një dërgesë.' : 'Shto fillimisht një dërgesë dhe pastaj regjistro kontrollin.')}
       </section>
     `
   }
@@ -541,6 +610,7 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
     if (state.page === 'markets') return marketsPage()
     if (state.page === 'products') return productsPage()
     if (state.page === 'deliveries') return deliveriesPage()
+    if (state.page === 'controls') return controlsPage()
     if (state.page === 'expiring') return expiringPage()
     return dashboardPage()
   }
@@ -564,6 +634,7 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
             ['markets', 'store', 'Marketet'],
             ['products', 'package', 'Produktet'],
             ['deliveries', 'truck', 'Dërgesat'],
+            ['controls', 'clipboard-check', 'Kontrollet'],
             ['expiring', 'clock-3', 'Skadencat'],
           ].map(([page, icon, label]) => `
             <button class="nav-item ${state.page === page ? 'active' : ''}" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>
@@ -653,8 +724,8 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
   }
 
   function deliveryDialog() {
-    if (!state.markets.length || !state.products.length) {
-      showToast(!state.markets.length ? 'Shto fillimisht një market.' : 'Shto fillimisht një produkt.')
+    if (!state.markets.length) {
+      showToast('Shto fillimisht një market.')
       return
     }
 
@@ -668,8 +739,9 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
         <p class="form-intro">Çdo ruajtje krijon një lot të ri historik dhe nuk ndryshon dërgesat e mëparshme.</p>
         <div class="field-grid">
           <label class="field"><span>Marketi</span><select name="marketId" required><option value="">Zgjidh marketin</option>${state.markets.map((market) => `<option value="${market.id}">${escapeHtml(market.name)}</option>`).join('')}</select></label>
-          <label class="field"><span>Produkti</span><select name="productId" required data-delivery-product><option value="">Zgjidh produktin</option>${state.products.map((product) => `<option value="${product.id}">${escapeHtml(product.name)} · ${escapeHtml(formatDate(product.expirationDate))}</option>`).join('')}</select></label>
-          <label class="field"><span>Barkodi <em>Opsional</em></span><input name="barcode" maxlength="64" inputmode="numeric" placeholder="Numri i barkodit"></label>
+          <label class="field"><span>Produkti</span><input name="productName" required maxlength="100" data-delivery-product-name placeholder="p.sh. Qumësht organik"></label>
+          <label class="field"><span>Barkodi</span><input name="barcode" required maxlength="64" inputmode="numeric" data-delivery-barcode placeholder="Numri i barkodit"></label>
+          <div class="barcode-match field-wide" data-barcode-match hidden></div>
           <label class="field"><span>Numri i lotit <em>Opsional</em></span><input name="lotNumber" maxlength="80" placeholder="p.sh. LOT-2026-08"></label>
           <label class="field"><span>Data e dërgesës</span><input name="deliveryDate" type="date" required></label>
           <label class="field"><span>Data e skadencës</span><input name="expirationDate" type="date" required></label>
@@ -742,9 +814,104 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
         <div class="sheet-handle"></div>
         <div class="sheet-heading"><div><span class="eyebrow">HISTORIKU</span><h2>${escapeHtml(delivery.productName)}</h2></div><button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button></div>
         <div class="history-list">
-          ${delivery.controls.map((control) => `<article><div><strong>${escapeHtml(formatDate(control.controlDate))}</strong><span>Diferenca: ${control.difference} copë</span></div><p>Në raft ${control.shelf} · Në magazinë ${control.warehouse} · Të kthyer ${control.returned} · Të dëmtuar ${control.damaged}</p>${control.notes ? `<small>${escapeHtml(control.notes)}</small>` : ''}</article>`).join('')}
+          ${delivery.controls.map((control) => `<article><div><strong>${escapeHtml(formatDate(control.controlDate))}</strong><span>Diferenca: ${control.difference} copë</span></div><p>Në raft ${control.shelf} · Në magazinë ${control.warehouse} · Për t'u kthyer ${Number(control.toReturn || 0)} · Të kthyer ${control.returned}${control.damaged ? ` · Të dëmtuar ${control.damaged}` : ''}</p>${control.notes ? `<small>${escapeHtml(control.notes)}</small>` : ''}</article>`).join('')}
         </div>
       </div>
+    `)
+  }
+
+  function resetControlBatchDetails(form) {
+    form.querySelector('[data-selected-delivery-details]').hidden = true
+    form.querySelectorAll('[data-control-entry]').forEach((field) => { field.disabled = true })
+    form.querySelector('[data-market-control-calculation]').textContent = 'Zgjidh dërgesën për të llogaritur sasitë.'
+  }
+
+  function updateControlProductOptions(form) {
+    const deliveries = state.deliveries.filter((delivery) => delivery.marketId === form.elements.marketId.value)
+    const products = [...new Map(deliveries.map((delivery) => [delivery.productId, delivery.productName])).entries()]
+      .sort((first, second) => first[1].localeCompare(second[1], 'sq'))
+    form.elements.productId.innerHTML = `<option value="">Zgjidh produktin</option>${products.map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('')}`
+    form.elements.productId.disabled = !products.length
+    form.elements.deliveryId.innerHTML = '<option value="">Zgjidh dërgesën ose lotin</option>'
+    form.elements.deliveryId.disabled = true
+    resetControlBatchDetails(form)
+  }
+
+  function updateControlBatchOptions(form) {
+    const deliveries = state.deliveries.filter((delivery) => delivery.marketId === form.elements.marketId.value && delivery.productId === form.elements.productId.value)
+    form.elements.deliveryId.innerHTML = `<option value="">Zgjidh dërgesën ose lotin</option>${deliveries.map((delivery) => `<option value="${delivery.id}">${delivery.lotNumber ? `Loti ${escapeHtml(delivery.lotNumber)} · ` : ''}${escapeHtml(formatDate(delivery.deliveryDate))} · skadon ${escapeHtml(formatDate(delivery.expirationDate))}</option>`).join('')}`
+    form.elements.deliveryId.disabled = !deliveries.length
+    resetControlBatchDetails(form)
+  }
+
+  function selectedControlDelivery(form) {
+    return state.deliveries.find((delivery) => delivery.id === form.elements.deliveryId.value) || null
+  }
+
+  function updateSelectedDeliveryDetails(form) {
+    const delivery = selectedControlDelivery(form)
+    const details = form.querySelector('[data-selected-delivery-details]')
+    if (!delivery) {
+      resetControlBatchDetails(form)
+      return
+    }
+    details.hidden = false
+    details.innerHTML = `
+      <div><span>Barkodi</span><strong>${delivery.barcode ? escapeHtml(delivery.barcode) : 'Nuk është vendosur'}</strong></div>
+      <div><span>Data e dërgesës</span><strong>${escapeHtml(formatDate(delivery.deliveryDate))}</strong></div>
+      <div><span>Data e skadencës</span><strong>${escapeHtml(formatDate(delivery.expirationDate))}</strong></div>
+      <div><span>Sasia e dërguar</span><strong>${escapeHtml(deliveryQuantityLabel(delivery))}</strong></div>
+    `
+    form.querySelectorAll('[data-control-entry]').forEach((field) => { field.disabled = false })
+    updateMarketControlCalculation(form, delivery)
+  }
+
+  function updateMarketControlCalculation(form, delivery = selectedControlDelivery(form)) {
+    if (!form || !delivery) return null
+    const calculation = calculateStockDistribution({
+      deliveredPieces: delivery.deliveredPieces,
+      inputUnit: 'piece',
+      piecesPerCase: delivery.piecesPerCase,
+      shelf: Number(form.elements.shelf.value) || 0,
+      warehouse: Number(form.elements.warehouse.value) || 0,
+      toReturn: Number(form.elements.toReturn.value) || 0,
+      returned: Number(form.elements.returned.value) || 0,
+      damaged: 0,
+    })
+    const preview = form.querySelector('[data-market-control-calculation]')
+    preview.classList.toggle('calculation-negative', calculation.difference < 0)
+    preview.innerHTML = `<strong>Diferenca për verifikim: ${calculation.difference} copë</strong>`
+    return calculation
+  }
+
+  function controlDialog() {
+    if (!state.deliveries.length) {
+      showToast('Shto fillimisht një dërgesë.')
+      return
+    }
+    const marketIds = new Set(state.deliveries.map((delivery) => delivery.marketId))
+    const markets = state.markets.filter((market) => marketIds.has(market.id))
+    showDialog(`
+      <form data-form="market-control" class="form-sheet market-control-form" novalidate>
+        <div class="sheet-handle"></div>
+        <div class="sheet-heading"><div><span class="eyebrow">KONTROLL FIZIK</span><h2>Regjistro kontrollin</h2></div><button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button></div>
+        <p class="form-intro">Zgjidh marketin, produktin dhe dërgesën që po kontrollon.</p>
+        <div class="field-grid">
+          <label class="field"><span>Marketi</span><select name="marketId" required data-control-market><option value="">Zgjidh marketin</option>${markets.map((market) => `<option value="${market.id}">${escapeHtml(market.name)}</option>`).join('')}</select></label>
+          <label class="field"><span>Produkti</span><select name="productId" required data-control-product disabled><option value="">Zgjidh produktin</option></select></label>
+          <label class="field field-wide"><span>Dërgesa ose loti</span><select name="deliveryId" required data-control-batch disabled><option value="">Zgjidh dërgesën ose lotin</option></select></label>
+          <div class="selected-delivery-details field-wide" data-selected-delivery-details hidden></div>
+          <label class="field"><span>Data e kontrollit</span><input name="controlDate" type="date" required></label>
+          <label class="field"><span>Sasia në raft</span><input name="shelf" type="number" min="0" step="1" inputmode="numeric" value="0" data-control-entry disabled></label>
+          <label class="field"><span>Sasia në magazinë</span><input name="warehouse" type="number" min="0" step="1" inputmode="numeric" value="0" data-control-entry disabled></label>
+          <label class="field"><span>Sasia për t'u kthyer</span><input name="toReturn" type="number" min="0" step="1" inputmode="numeric" value="0" data-control-entry disabled></label>
+          <label class="field"><span>Sasia e kthyer</span><input name="returned" type="number" min="0" step="1" inputmode="numeric" value="0" data-control-entry disabled></label>
+          <div class="calculation-preview field-wide" data-market-control-calculation>Zgjidh dërgesën për të llogaritur sasitë.</div>
+          <label class="field field-wide"><span>Shënim <em>Opsional</em></span><textarea name="notes" maxlength="500" rows="3" data-control-entry disabled placeholder="Shto një shënim për kontrollin"></textarea></label>
+        </div>
+        <small class="field-error form-error" data-market-control-error aria-live="polite"></small>
+        <div class="form-actions check-form-actions"><button type="button" class="button button-secondary" data-action="close-dialog">Anulo</button><button type="submit" class="button button-primary">Ruaj kontrollin</button></div>
+      </form>
     `)
   }
 
@@ -841,6 +1008,15 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
     if (action === 'add-product') productDialog()
     if (action === 'edit-product') productDialog(state.products.find((product) => product.id === target.dataset.id))
     if (action === 'add-delivery') deliveryDialog()
+    if (action === 'add-control') controlDialog()
+    if (action === 'use-existing-product') {
+      const form = target.closest('[data-form="delivery"]')
+      const product = state.products.find((item) => item.id === target.dataset.id)
+      if (form && product) {
+        form.elements.productName.value = product.name
+        updateDeliveryProductMatch(form)
+      }
+    }
     if (action === 'check-delivery') {
       const delivery = state.deliveries.find((item) => item.id === target.dataset.id)
       if (delivery) deliveryCheckDialog(delivery)
@@ -907,7 +1083,18 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
   })
 
   root.addEventListener('input', (event) => {
+    const marketControlForm = event.target.closest('[data-form="market-control"]')
+    if (marketControlForm && event.target.matches('[name="shelf"], [name="warehouse"], [name="toReturn"], [name="returned"]')) {
+      marketControlForm.querySelector('[data-market-control-error]').replaceChildren()
+      updateMarketControlCalculation(marketControlForm)
+      return
+    }
     const deliveryForm = event.target.closest('[data-form="delivery"]')
+    if (deliveryForm && event.target.matches('[data-delivery-barcode], [data-delivery-product-name]')) {
+      deliveryForm.querySelector('[data-delivery-error]').replaceChildren()
+      updateDeliveryProductMatch(deliveryForm)
+      return
+    }
     if (deliveryForm && event.target.matches('[name="caseCount"], [name="piecesPerCase"], [name="quantity"]')) {
       deliveryForm.querySelector('[data-delivery-error]').replaceChildren()
       updateDeliveryCalculation(deliveryForm)
@@ -947,6 +1134,18 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
   })
 
   root.addEventListener('change', (event) => {
+    if (event.target.matches('[data-control-market]')) {
+      updateControlProductOptions(event.target.closest('form'))
+      return
+    }
+    if (event.target.matches('[data-control-product]')) {
+      updateControlBatchOptions(event.target.closest('form'))
+      return
+    }
+    if (event.target.matches('[data-control-batch]')) {
+      updateSelectedDeliveryDetails(event.target.closest('form'))
+      return
+    }
     if (event.target.matches('[data-filter]')) {
       state.filters[event.target.dataset.filter] = event.target.value
       render()
@@ -959,16 +1158,6 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
     }
     if (event.target.matches('[data-delivery-unit]')) {
       updateDeliveryCalculation(event.target.closest('form'))
-      return
-    }
-    if (event.target.matches('[data-delivery-product]')) {
-      const product = state.products.find((item) => item.id === event.target.value)
-      const form = event.target.closest('form')
-      if (product) {
-        form.elements.marketId.value = product.marketId
-        form.elements.barcode.value = product.barcode || ''
-        form.elements.expirationDate.value = product.expirationDate
-      }
       return
     }
     if (event.target.matches('[data-control-unit]')) {
@@ -984,8 +1173,53 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
     const values = Object.fromEntries(new FormData(form))
     const submitButton = form.querySelector('[type="submit"]')
 
+    if (form.dataset.form === 'market-control') {
+      const delivery = state.deliveries.find((item) => item.id === values.deliveryId)
+      const error = form.querySelector('[data-market-control-error]')
+      const quantityFields = ['shelf', 'warehouse', 'toReturn', 'returned']
+      const selectionIsValid = delivery
+        && delivery.marketId === values.marketId
+        && delivery.productId === values.productId
+
+      if (!selectionIsValid || !isValidDateInput(values.controlDate)) {
+        error.textContent = 'Zgjidh marketin, produktin, dërgesën dhe datën e kontrollit.'
+        return
+      }
+      if (quantityFields.some((field) => !isNonNegativeInteger(values[field]))) {
+        error.textContent = 'Vendos sasi të plota dhe jo negative.'
+        return
+      }
+      const calculation = updateMarketControlCalculation(form, delivery)
+      if (calculation.difference < 0) {
+        error.textContent = 'Shuma e sasive nuk mund të kalojë sasinë e dërguar.'
+        return
+      }
+
+      submitButton.disabled = true
+      try {
+        await deliveryRepository.addCheck({
+          deliveryId: delivery.id,
+          marketId: delivery.marketId,
+          productId: delivery.productId,
+          controlDate: values.controlDate,
+          inputUnit: 'piece',
+          ...calculation,
+          notes: values.notes,
+        })
+        if (calculation.returned === Number(delivery.deliveredPieces) && calculation.shelf === 0 && calculation.warehouse === 0 && calculation.toReturn === 0) {
+          await deliveryRepository.setStatus(delivery.id, 'returned')
+        }
+        closeDialog()
+        await refresh()
+        showToast('Kontrolli u ruajt në historik.')
+      } catch {
+        submitButton.disabled = false
+        showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')
+      }
+      return
+    }
+
     if (form.dataset.form === 'delivery') {
-      const product = state.products.find((item) => item.id === values.productId)
       const market = state.markets.find((item) => item.id === values.marketId)
       const isCase = values.unit === 'case'
       const quantityIsValid = isCase
@@ -993,17 +1227,49 @@ export function createApp({ root, marketRepository, productRepository, deliveryR
         : isPositiveInteger(values.quantity)
       const error = form.querySelector('[data-delivery-error]')
 
-      if (!market || !product || !isValidDateInput(values.deliveryDate) || !isValidDateInput(values.expirationDate) || !quantityIsValid) {
+      const productName = values.productName.trim()
+      const barcode = values.barcode.trim()
+      const existingProduct = findProductByBarcode(barcode)
+
+      if (!market || !productName || !barcode || !isValidDateInput(values.deliveryDate) || !isValidDateInput(values.expirationDate) || !quantityIsValid) {
         error.textContent = 'Plotëso të gjitha fushat e detyrueshme me vlera të vlefshme.'
+        return
+      }
+      if (existingProduct && normalizeProductName(existingProduct.name) !== normalizeProductName(productName)) {
+        updateDeliveryProductMatch(form)
+        error.textContent = 'Barkodi është i lidhur me një emër tjetër produkti.'
         return
       }
 
       submitButton.disabled = true
       try {
+        const deliveredPieces = calculateDeliveredPieces(values)
+        const persistedProduct = await productRepository.findByBarcode(barcode)
+        if (persistedProduct && normalizeProductName(persistedProduct.name) !== normalizeProductName(productName)) {
+          state.products = await productRepository.list()
+          submitButton.disabled = false
+          updateDeliveryProductMatch(form)
+          error.textContent = 'Barkodi është i lidhur me një emër tjetër produkti.'
+          return
+        }
+        const product = persistedProduct || await productRepository.save({
+          name: productName,
+          barcode,
+          marketId: market.id,
+          quantity: deliveredPieces,
+          expirationDate: values.expirationDate,
+          notes: '',
+          status: 'shelf',
+          lastCheckedAt: null,
+          checkNote: '',
+          returnHistory: [],
+        })
         await deliveryRepository.add({
           ...values,
+          productId: product.id,
           marketName: market.name,
           productName: product.name,
+          barcode: product.barcode,
           status: 'shelf',
         })
         closeDialog()

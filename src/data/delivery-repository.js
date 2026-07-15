@@ -100,10 +100,13 @@ export const deliveryRepository = {
       const record = {
         id: createId('delivery-check'),
         deliveryId: input.deliveryId,
+        marketId: input.marketId || null,
+        productId: input.productId || null,
         controlDate: input.controlDate,
         inputUnit: input.inputUnit === 'case' ? 'case' : 'piece',
         shelf: Number(input.shelf),
         warehouse: Number(input.warehouse),
+        toReturn: Number(input.toReturn || 0),
         returned: Number(input.returned),
         damaged: Number(input.damaged),
         difference: Number(input.difference),

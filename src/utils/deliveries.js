@@ -10,6 +10,7 @@ export function calculateStockDistribution({
   piecesPerCase,
   shelf,
   warehouse,
+  toReturn = 0,
   returned,
   damaged,
 }) {
@@ -17,6 +18,7 @@ export function calculateStockDistribution({
   const distribution = {
     shelf: Number(shelf) * multiplier,
     warehouse: Number(warehouse) * multiplier,
+    toReturn: Number(toReturn) * multiplier,
     returned: Number(returned) * multiplier,
     damaged: Number(damaged) * multiplier,
   }
