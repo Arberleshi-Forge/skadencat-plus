@@ -1,6 +1,7 @@
 import {
   daysUntil,
   expirationGroup,
+  formatCheckedAt,
   formatDate,
   formatRelativeExpiration,
 } from '../utils/dates.js'
@@ -16,7 +17,7 @@ const GROUPS = [
   { id: 'expired', label: 'Të skaduara', tone: 'danger' },
   { id: 'seven', label: 'Brenda 7 ditëve', tone: 'warning' },
   { id: 'thirty', label: 'Brenda 30 ditëve', tone: 'attention' },
-  { id: 'safe', label: 'Produkte në rregull', tone: 'success' },
+  { id: 'safe', label: 'Në rregull', tone: 'success' },
 ]
 
 function escapeHtml(value = '') {
@@ -63,12 +64,22 @@ export function createApp({ root, marketRepository, productRepository }) {
     const query = state.query.trim().toLocaleLowerCase()
     if (!query) return state.products
     return state.products.filter((product) =>
-      product.name.toLocaleLowerCase().includes(query) || product.barcode.toLocaleLowerCase().includes(query),
+      product.name.toLocaleLowerCase().includes(query)
+      || product.barcode.toLocaleLowerCase().includes(query)
+      || marketName(product.marketId).toLocaleLowerCase().includes(query),
     )
+  }
+
+  function remainingTone(dateString) {
+    const days = daysUntil(dateString)
+    if (days <= 7) return 'danger'
+    if (days <= 30) return 'attention'
+    return 'success'
   }
 
   function productRow(product, { actions = false } = {}) {
     const group = expirationGroup(product.expirationDate)
+    const quantity = Number.isFinite(Number(product.quantity)) ? Number(product.quantity) : 0
     return `
       <article class="product-row">
         <div class="product-avatar tone-${group}" aria-hidden="true">${escapeHtml(product.name.charAt(0).toUpperCase())}</div>
@@ -79,13 +90,15 @@ export function createApp({ root, marketRepository, productRepository }) {
               <button class="more-button" data-action="edit-product" data-id="${product.id}" aria-label="Modifiko ${escapeHtml(product.name)}">•••</button>
             ` : ''}
           </div>
-          <p>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</p>
-          <div class="expiry-line">
-            <span class="status-dot tone-${group}"></span>
-            <span>${escapeHtml(formatRelativeExpiration(product.expirationDate))}</span>
-            <span>·</span>
-            <span>${escapeHtml(formatDate(product.expirationDate))}</span>
+          <div class="product-meta-grid">
+            <div><span>Marketi</span><strong>${escapeHtml(marketName(product.marketId))}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</strong></div>
+            <div><span>Sasia</span><strong>${quantity} copë</strong></div>
+            <div><span>Data e skadencës</span><strong>${escapeHtml(formatDate(product.expirationDate))}</strong></div>
+            <div class="remaining remaining-${remainingTone(product.expirationDate)}"><span>Afati</span><strong>${escapeHtml(formatRelativeExpiration(product.expirationDate))}</strong></div>
+            <div class="checked-meta"><span>Kontrolluar më:</span><strong>${escapeHtml(formatCheckedAt(product.lastCheckedAt))}</strong></div>
+            <div class="notes-meta"><span>Shënime</span><strong>${product.notes ? escapeHtml(product.notes) : '—'}</strong></div>
           </div>
+          <button class="checked-button" data-action="check-product" data-id="${product.id}" aria-label="Shëno ${escapeHtml(product.name)} si të kontrolluar">✔ E kontrollova</button>
         </div>
       </article>
     `
@@ -103,7 +116,7 @@ export function createApp({ root, marketRepository, productRepository }) {
       <section class="welcome-card">
         <div>
           <span class="eyebrow">GJENDJA E SKADENCAVE</span>
-          <h2>${expired ? (expired === 1 ? '1 produkt kërkon vëmendje' : `${expired} produkte kërkojnë vëmendje`) : 'Gjithçka është në rregull'}</h2>
+          <h2>Përmbledhja e sotme</h2>
           <p>${expired ? 'Kontrollo produktet e skaduara dhe mbaji raftet të përditësuara.' : 'Nuk ka produkte të skaduara.'}</p>
         </div>
         <button class="button button-light" data-page="expiring">Shiko produktet</button>
@@ -161,7 +174,7 @@ export function createApp({ root, marketRepository, productRepository }) {
             <div class="market-avatar" aria-hidden="true">${escapeHtml(market.name.charAt(0).toUpperCase())}</div>
             <div class="market-info">
               <h3>${escapeHtml(market.name)}</h3>
-              <p>${market.location ? escapeHtml(market.location) : 'Pa vendndodhje'} · ${productCount(market.id)} ${productCount(market.id) === 1 ? 'produkt' : 'produkte'}</p>
+              <p><span class="market-address">Adresa: ${market.location ? escapeHtml(market.location) : 'Nuk është shtuar'}</span> · ${productCount(market.id)} ${productCount(market.id) === 1 ? 'produkt' : 'produkte'}</p>
             </div>
             <button class="more-button" data-action="edit-market" data-id="${market.id}" aria-label="Modifiko ${escapeHtml(market.name)}">•••</button>
           </article>
@@ -176,7 +189,7 @@ export function createApp({ root, marketRepository, productRepository }) {
       <div class="page-actions product-actions">
         <div class="search-field">
           <span aria-hidden="true">⌕</span>
-          <input type="search" data-search placeholder="Kërko sipas emrit ose barkodit" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit ose barkodit">
+          <input type="search" data-search placeholder="Kërko emrin, barkodin ose marketin" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit, barkodit ose marketit">
           ${state.query ? '<button data-action="clear-search" aria-label="Pastro kërkimin">×</button>' : ''}
         </div>
         <button class="button button-primary" data-action="add-product"><span aria-hidden="true">+</span> Shto produkt</button>
@@ -185,18 +198,18 @@ export function createApp({ root, marketRepository, productRepository }) {
       <section class="list-card product-list">
         ${products.length ? products.map((product) => productRow(product, { actions: true })).join('') : emptyState(
           state.query ? 'Nuk u gjet asnjë produkt' : 'Nuk ka ende produkte',
-          state.query ? 'Provo një emër ose barkod tjetër.' : state.markets.length ? 'Shto produktin e parë për të filluar ndjekjen e datave të skadencës.' : 'Shto fillimisht një market, pastaj shto produktet.',
+          state.query ? 'Provo një emër, barkod ose market tjetër.' : state.markets.length ? 'Shto produktin e parë për të filluar ndjekjen e datave të skadencës.' : 'Shto fillimisht një market, pastaj shto produktet.',
         )}
       </section>
     `
   }
 
   function expiringPage() {
-    const products = filteredProducts()
+    const products = [...filteredProducts()].sort((first, second) => daysUntil(first.expirationDate) - daysUntil(second.expirationDate))
     return `
       <div class="search-field expiring-search">
         <span aria-hidden="true">⌕</span>
-        <input type="search" data-search placeholder="Kërko sipas emrit ose barkodit" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit ose barkodit">
+        <input type="search" data-search placeholder="Kërko emrin, barkodin ose marketin" value="${escapeHtml(state.query)}" aria-label="Kërko produktet sipas emrit, barkodit ose marketit">
         ${state.query ? '<button data-action="clear-search" aria-label="Pastro kërkimin">×</button>' : ''}
       </div>
       <div class="group-stack">
@@ -282,7 +295,7 @@ export function createApp({ root, marketRepository, productRepository }) {
           <button type="button" class="close-button" data-action="close-dialog" aria-label="Mbyll">×</button>
         </div>
         <label class="field"><span>Emri i marketit</span><input name="name" required maxlength="80" autocomplete="organization" value="${escapeHtml(market.name || '')}" placeholder="p.sh. Marketi Alba"></label>
-        <label class="field"><span>Vendndodhja <em>Opsionale</em></span><input name="location" maxlength="120" value="${escapeHtml(market.location || '')}" placeholder="p.sh. Qendër"></label>
+        <label class="field"><span>Adresa</span><input name="location" required maxlength="120" value="${escapeHtml(market.location || '')}" placeholder="p.sh. Rruga e Durrësit, Tiranë"></label>
         <div class="form-actions">
           ${market.id ? '<button type="button" class="button button-danger-text" data-action="delete-market">Fshi</button>' : '<span></span>'}
           <button type="submit" class="button button-primary">${market.id ? 'Ruaj ndryshimet' : 'Shto market'}</button>
@@ -303,6 +316,7 @@ export function createApp({ root, marketRepository, productRepository }) {
       <form data-form="product" class="form-sheet">
         <input type="hidden" name="id" value="${product.id || ''}">
         <input type="hidden" name="createdAt" value="${product.createdAt || ''}">
+        <input type="hidden" name="lastCheckedAt" value="${product.lastCheckedAt || ''}">
         <div class="sheet-handle"></div>
         <div class="sheet-heading">
           <div><span class="eyebrow">PRODUKT</span><h2>${product.id ? 'Modifiko produktin' : 'Shto një produkt të ri'}</h2></div>
@@ -312,6 +326,7 @@ export function createApp({ root, marketRepository, productRepository }) {
           <label class="field field-wide"><span>Emri i produktit</span><input name="name" required maxlength="100" value="${escapeHtml(product.name || '')}" placeholder="p.sh. Qumësht organik"></label>
           <label class="field"><span>Barkodi <em>Opsional</em></span><input name="barcode" inputmode="numeric" maxlength="64" value="${escapeHtml(product.barcode || '')}" placeholder="Skano ose shkruaj numrin"></label>
           <label class="field"><span>Marketi</span><select name="marketId" required><option value="">Zgjidh marketin</option>${state.markets.map((market) => `<option value="${market.id}" ${product.marketId === market.id ? 'selected' : ''}>${escapeHtml(market.name)}</option>`).join('')}</select></label>
+          <label class="field"><span>Sasia</span><input name="quantity" type="number" inputmode="numeric" required min="0" step="1" value="${escapeHtml(product.quantity ?? 0)}" placeholder="p.sh. 12"></label>
           <label class="field"><span>Data e skadencës</span><input name="expirationDate" type="date" required value="${product.expirationDate || ''}"></label>
           <label class="field field-wide"><span>Shënime <em>Opsionale</em></span><textarea name="notes" maxlength="500" rows="3" placeholder="Shto hollësi për ruajtjen ose një kujtesë">${escapeHtml(product.notes || '')}</textarea></label>
         </div>
@@ -365,6 +380,23 @@ export function createApp({ root, marketRepository, productRepository }) {
         ? state.expandedGroups.delete(target.dataset.group)
         : state.expandedGroups.add(target.dataset.group)
       render()
+    }
+    if (action === 'check-product') {
+      const product = state.products.find((item) => item.id === target.dataset.id)
+      if (!product) return
+      target.disabled = true
+      try {
+        await productRepository.save({
+          ...product,
+          quantity: product.quantity ?? 0,
+          lastCheckedAt: new Date().toISOString(),
+        })
+        await refresh()
+        showToast('Produkti u shënua si i kontrolluar.')
+      } catch {
+        target.disabled = false
+        showToast('Kontrolli nuk u ruajt dot. Provo përsëri.')
+      }
     }
     if (action === 'delete-market') {
       const form = target.closest('form')

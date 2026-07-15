@@ -19,8 +19,10 @@ export const productRepository = {
         name: input.name.trim(),
         barcode: input.barcode.trim(),
         marketId: input.marketId,
+        quantity: Number(input.quantity),
         expirationDate: input.expirationDate,
         notes: input.notes.trim(),
+        lastCheckedAt: input.lastCheckedAt || null,
         createdAt: input.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }

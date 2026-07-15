@@ -32,9 +32,24 @@ export function formatDate(dateString) {
 
 export function formatRelativeExpiration(dateString) {
   const days = daysUntil(dateString)
-  if (days === 0) return 'Skadon sot'
-  if (days === 1) return 'Skadon nesër'
-  if (days > 1) return `Skadon pas ${days} ditësh`
-  if (days === -1) return 'Ka skaduar dje'
-  return `Ka skaduar para ${Math.abs(days)} ditësh`
+  if (days >= 0) return `Kanë mbetur: ${days} ditë`
+  return `Të skaduara prej ${Math.abs(days)} ditësh`
+}
+
+export function formatCheckedAt(dateString) {
+  if (!dateString) return 'Ende pa u kontrolluar'
+
+  const parts = new Intl.DateTimeFormat('sq-AL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(dateString))
+
+  const part = (type) => parts.find((item) => item.type === type)?.value || ''
+  const month = part('month')
+  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
+  return `${part('day')} ${capitalizedMonth} ${part('year')}, ${part('hour')}:${part('minute')}`
 }

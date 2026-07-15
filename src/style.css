@@ -353,6 +353,18 @@ p {
   gap: 13px;
 }
 
+.product-row {
+  min-height: 0;
+  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.market-row {
+  min-height: 74px;
+  padding: 12px 15px;
+}
+
 .product-row + .product-row,
 .market-row + .market-row {
   border-top: 1px solid var(--line);
@@ -370,6 +382,14 @@ p {
   background: #f0f2f6;
   font-size: 15px;
   font-weight: 800;
+}
+
+.product-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  margin-top: 1px;
+  font-size: 13px;
 }
 
 .product-avatar.tone-expired,
@@ -390,6 +410,12 @@ p {
   gap: 8px;
 }
 
+.product-name-line .more-button {
+  width: 30px;
+  height: 28px;
+  margin: -4px -3px -2px 0;
+}
+
 .product-info h3,
 .market-info h3 {
   overflow: hidden;
@@ -399,7 +425,6 @@ p {
   white-space: nowrap;
 }
 
-.product-info > p,
 .market-info p {
   margin-top: 4px;
   overflow: hidden;
@@ -407,6 +432,82 @@ p {
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.product-meta-grid {
+  margin-top: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  gap: 7px 13px;
+}
+
+.product-meta-grid > div {
+  min-width: 0;
+}
+
+.product-meta-grid span {
+  display: block;
+  color: #939bab;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.product-meta-grid strong {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: #596276;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.product-meta-grid .remaining-danger strong { color: var(--red); }
+.product-meta-grid .remaining-attention strong { color: #b67f12; }
+.product-meta-grid .remaining-success strong { color: var(--green); }
+
+.checked-meta,
+.notes-meta {
+  grid-column: 1 / -1;
+}
+
+.notes-meta strong {
+  white-space: pre-line;
+}
+
+.checked-button {
+  min-height: 30px;
+  border: 1px solid #dce4ff;
+  border-radius: 10px;
+  margin-top: 9px;
+  padding: 6px 10px;
+  color: #3a5fca;
+  background: var(--blue-soft);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  transition: transform 150ms ease, opacity 150ms ease, background 150ms ease;
+}
+
+.checked-button:hover {
+  background: #e4eaff;
+}
+
+.checked-button:active {
+  transform: scale(0.98);
+}
+
+.checked-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.market-address {
+  color: #687286;
+  font-weight: 650;
 }
 
 .expiry-line {
