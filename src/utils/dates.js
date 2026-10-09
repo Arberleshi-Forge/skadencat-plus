@@ -1,3 +1,5 @@
+import { getLocale, t } from '../i18n/index.js'
+
 const DAY_IN_MILLISECONDS = 86_400_000
 
 function toLocalMidnight(dateLike) {
@@ -23,7 +25,7 @@ export function expirationGroup(dateString) {
 }
 
 export function formatDate(dateString) {
-  const parts = new Intl.DateTimeFormat('sq-AL', {
+  const parts = new Intl.DateTimeFormat(getLocale(), {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -31,20 +33,20 @@ export function formatDate(dateString) {
 
   const part = (type) => parts.find((item) => item.type === type)?.value || ''
   const month = part('month')
-  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
+  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase(getLocale())}${month.slice(1)}` : ''
   return `${part('day')} ${capitalizedMonth} ${part('year')}`
 }
 
 export function formatRelativeExpiration(dateString) {
   const days = daysUntil(dateString)
-  if (days >= 0) return `Kanë mbetur: ${days} ditë`
-  return `Të skaduara prej ${Math.abs(days)} ditësh`
+  if (days >= 0) return t('Kanë mbetur: {days} ditë', { days })
+  return t('Të skaduara prej {days} ditësh', { days: Math.abs(days) })
 }
 
 export function formatCheckedAt(dateString) {
-  if (!dateString) return 'Nuk është kontrolluar ende'
+  if (!dateString) return t('Nuk është kontrolluar ende')
 
-  const parts = new Intl.DateTimeFormat('sq-AL', {
+  const parts = new Intl.DateTimeFormat(getLocale(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -52,6 +54,6 @@ export function formatCheckedAt(dateString) {
 
   const part = (type) => parts.find((item) => item.type === type)?.value || ''
   const month = part('month')
-  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase('sq-AL')}${month.slice(1)}` : ''
+  const capitalizedMonth = month ? `${month.charAt(0).toLocaleUpperCase(getLocale())}${month.slice(1)}` : ''
   return `${part('day')} ${capitalizedMonth} ${part('year')}`
 }

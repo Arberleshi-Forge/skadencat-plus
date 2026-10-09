@@ -3,6 +3,18 @@ import { createApp } from './ui/app.js'
 import { marketRepository } from './data/market-repository.js'
 import { productRepository } from './data/product-repository.js'
 import { deliveryRepository } from './data/delivery-repository.js'
+import { initializeLanguage } from './i18n/index.js'
+
+let preferenceStorage
+try {
+  preferenceStorage = window.localStorage
+} catch {
+  // Device settings may block localStorage independently of inventory storage.
+}
+initializeLanguage({
+  storage: preferenceStorage,
+  browserLanguages: navigator.languages?.length ? navigator.languages : [navigator.language],
+})
 
 const app = createApp({
   root: document.querySelector('#app'),

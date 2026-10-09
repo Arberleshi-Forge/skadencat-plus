@@ -1,7 +1,8 @@
 {
   "name": "Skadencat+",
   "short_name": "Skadencat+",
-  "description": "Menaxho dërgesat, lotet, produktet dhe datat e skadencës vetëm në pajisjen tënde.",
+  "description": "Manage deliveries, batches, products and expiry dates locally on your device.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

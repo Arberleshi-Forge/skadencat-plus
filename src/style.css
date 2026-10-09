@@ -111,6 +111,53 @@ p {
   font-size: clamp(25px, 5vw, 34px);
   line-height: 1.08;
   letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+
+.language-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid #dde4fa;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.language-switch button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #526078;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.language-switch button[aria-pressed="true"] {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.language-switch button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.language-switch button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (max-width: 380px) {
+  .topbar { padding-inline: 16px; gap: 8px; flex-wrap: wrap; }
+  .brand-mark { width: 38px; height: 38px; }
+  .title-wrap { flex-basis: calc(100% - 54px); }
+  .language-switch { margin-left: auto; }
 }
 
 .title-wrap p {
